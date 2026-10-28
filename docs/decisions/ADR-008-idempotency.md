@@ -56,7 +56,7 @@ placeOrder(pedido, idempotencyKey):
 | Caso | Respuesta |
 |---|---|
 | Clave nueva | Se procesa normalmente |
-| Clave usada, mismo pedido | La orden registrada, con el status de la respuesta original y el header `Idempotent-Replayed: true` |
+| Clave usada, mismo pedido | La orden registrada en su estado actual, con `200 OK` y el header `Idempotent-Replayed: true` |
 | Clave usada, pedido distinto | 422 `IDEMPOTENCY_KEY_REUSED`, sin registrar nada |
 | Dos pedidos simultáneos con la misma clave | El lock de la cuenta los serializa: el segundo espera, encuentra la orden del primero y la devuelve como replay |
 
@@ -65,7 +65,7 @@ placeOrder(pedido, idempotencyKey):
 - **La deduplicación ocurre bajo el lock de la cuenta**, así que dos pedidos con la misma clave no pueden pasar la búsqueda a la vez. La restricción de unicidad en la base es la red de seguridad: si por un error de programación se violara, la transacción falla y no se registra un duplicado.
 - **Solo las órdenes registradas consumen la clave.** Una orden `REJECTED` se registra, así que su reintento devuelve el mismo rechazo aunque mientras tanto haya cambiado el disponible: la respuesta corresponde a lo que ocurrió la primera vez. Un error de validación, un recurso inexistente o `ACCOUNT_BUSY` no registran nada, así que el reintento se procesa normalmente; es exactamente el caso para el que existe `ACCOUNT_BUSY`.
 - **El replay devuelve la orden en su estado actual**, no una copia de la respuesta original. Si una orden LIMIT se canceló después, el reintento la muestra `CANCELLED`. Es una consecuencia de usar la orden como registro, y le da al cliente información más útil que una respuesta congelada.
-- **El status del replay es el de la respuesta original**: toda orden registrada respondió `201 Created`, así que el replay también responde `201`.
+- **El replay responde `200 OK`, no `201 Created`.** En el reintento no se crea ninguna orden: se devuelve la representación actual de una que ya existía, que es exactamente lo que significa `200`. Es coherente con la decisión anterior: como el replay no es una copia de la respuesta original sino el estado actual de la orden, tampoco tiene sentido copiar su status. El cliente distingue los dos casos por el status y por el header `Idempotent-Replayed`, y en ambos casos recibe una respuesta exitosa (2xx), así que un cliente que trata cualquier 2xx como éxito no necesita lógica especial.
 
 ## Alternativas consideradas
 
@@ -74,6 +74,7 @@ placeOrder(pedido, idempotencyKey):
 - **Identificador de orden del cliente en el body** (equivalente al `ClOrdID` de FIX). Es un concepto de dominio y no de transporte, pero mezcla en el contrato de la orden un dato cuyo único fin es deduplicar. El header separa esa responsabilidad y sigue un estándar en curso.
 - **Deduplicar por contenido** (rechazar un pedido igual a uno reciente). No distingue un reintento de dos compras iguales intencionales, que en trading son habituales.
 - **Vencimiento de las claves** (Stripe las descarta a las 24 horas). Tiene sentido cuando las claves viven en una tabla que crece aparte; acá viven en la orden y no hay nada que depurar.
+- **Responder en el replay el mismo status que la respuesta original** (`201`), que es lo que hacen Stripe y lo que sugiere el borrador de la IETF cuando se guarda la respuesta completa. Permite que el cliente procese el reintento por el mismo camino que la respuesta original, pero `201` afirma que el pedido creó un recurso, lo que en un reintento es falso, y es incoherente con devolver el estado actual de la orden en lugar de una copia de la respuesta.
 - **Clave también en la cancelación.** Haría que un reintento reciba la respuesta original en lugar de un 409, pero el efecto de la cancelación ya es idempotente y el estado se puede consultar.
 
 ## Consecuencias

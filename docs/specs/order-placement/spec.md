@@ -291,7 +291,7 @@ Todo pedido de orden DEBE incluir una clave de idempotencia generada por el clie
 
 La clave es única por usuario y no vence. Si llega un pedido con una clave que el usuario ya usó en una orden registrada:
 
-- Si el pedido es igual al original, el sistema NO DEBE procesarlo de nuevo: DEBE devolver la orden registrada, en su estado actual, con el mismo status HTTP de la respuesta original y el header `Idempotent-Replayed: true`.
+- Si el pedido es igual al original, el sistema NO DEBE procesarlo de nuevo: DEBE devolver la orden registrada, en su estado actual, con el status `200 OK` y el header `Idempotent-Replayed: true`. El status distingue el reintento del registro original, que responde `201 Created`: en el reintento no se creó ninguna orden.
 - Si el pedido es distinto del original, DEBE responderse con un error con el código `IDEMPOTENCY_KEY_REUSED`, sin registrar ninguna orden.
 
 Un pedido que terminó en un error (validación, recurso inexistente o cuenta ocupada) no registra la orden, así que su clave queda libre y un reintento se procesa normalmente.
@@ -309,7 +309,7 @@ Un pedido que terminó en un error (validación, recurso inexistente o cuenta oc
 - **AND** el último precio de GGAL es 885,80
 - **AND** una orden BUY MARKET de 10 GGAL enviada con la clave `k-1`, que quedó `FILLED`
 - **WHEN** reenvía el mismo pedido con la clave `k-1`
-- **THEN** la respuesta devuelve la misma orden, con el mismo identificador y el header `Idempotent-Replayed: true`
+- **THEN** la respuesta devuelve la misma orden, con el mismo identificador, el status `200 OK` y el header `Idempotent-Replayed: true`
 - **AND** no se registra una orden nueva
 - **AND** sus pesos disponibles siguen siendo 91.142 ARS
 
@@ -340,7 +340,7 @@ Un pedido que terminó en un error (validación, recurso inexistente o cuenta oc
 - **GIVEN** un usuario con 100.000 ARS disponibles
 - **WHEN** envía al mismo tiempo dos pedidos iguales de BUY MARKET de 10 GGAL con la clave `k-5`
 - **THEN** se registra una sola orden
-- **AND** las dos respuestas devuelven esa misma orden, una de ellas con el header `Idempotent-Replayed: true`
+- **AND** las dos respuestas devuelven esa misma orden: una con el status `201 Created` y la otra con el status `200 OK` y el header `Idempotent-Replayed: true`
 
 #### Scenario: ORD-39 · Reintento después de un error de validación
 
