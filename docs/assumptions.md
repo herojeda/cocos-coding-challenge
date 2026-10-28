@@ -23,6 +23,7 @@ Cuando Cocos responda, se actualiza el estado acá y, si la respuesta cambia el 
 | S10 | Criterio de búsqueda de activos | Decisión de diseño |
 | S11 | Identificación del usuario sin autenticación | Decisión de diseño |
 | S12 | Transferencias de pesos | Decisión de diseño |
+| S13 | Motivo del rechazo de una orden | Decisión de diseño |
 
 ---
 
@@ -148,3 +149,21 @@ Como datos complementarios se exponen el **resultado realizado** (`(precio de ve
 **Limitación conocida:** la cantidad de una orden es un número entero, así que no se pueden registrar transferencias con centavos.
 
 **Afecta a:** `account-balance`, `order-placement`.
+
+## S13 — Motivo del rechazo de una orden
+
+**Estado:** decisión de diseño.
+
+**Decisión:** toda orden que el sistema rechaza registra y devuelve el motivo, con un valor de un catálogo cerrado:
+
+| Motivo | Cuándo |
+|---|---|
+| `INSUFFICIENT_CASH` | Una compra supera los pesos disponibles |
+| `INSUFFICIENT_HOLDINGS` | Una venta supera las acciones disponibles para vender |
+| `NO_MARKET_PRICE` | Una orden MARKET sobre un instrumento sin cotización |
+
+Si una orden MARKET no tiene cotización, el motivo es `NO_MARKET_PRICE` aunque además falte disponible, porque sin precio no se puede calcular el importe a validar. Las órdenes en otro estado no tienen motivo. Las órdenes `REJECTED` que ya existen en la seed no tienen motivo registrado y se informan sin él.
+
+**Fundamento:** el estado `REJECTED` dice que la orden no se aceptó, pero no por qué. Con un motivo semántico, el cliente puede reaccionar sin interpretar texto (por ejemplo, ofrecer ingresar pesos ante `INSUFFICIENT_CASH`), lo que mejora la experiencia del usuario. Los valores son parte del contrato de la API, así que el catálogo es cerrado y se amplía solo con un cambio de spec.
+
+**Afecta a:** `order-placement`, y el modelo de datos: el libro de órdenes necesita guardar el motivo (ver ADRs).
