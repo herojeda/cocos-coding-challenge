@@ -24,6 +24,7 @@ SELECT ... FROM accounts WHERE user_id = ? FOR UPDATE;
 placeOrder(pedido):
   cuenta      = lock de la cuenta del usuario           -- si no existe → 404
                                                         -- si está PENDING, se reconstruye acá (ADR-005)
+  orden previa con la misma clave de idempotencia       -- replay o IDEMPOTENCY_KEY_REUSED (ADR-008)
   instrumento = instruments.find(id)                    -- 404; CURRENCY → 400
   cotización  = último precio del instrumento           -- puede no existir
   posición    = posición de la cuenta en el instrumento
