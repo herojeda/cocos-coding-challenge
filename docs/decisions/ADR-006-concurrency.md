@@ -70,7 +70,7 @@ Con Testcontainers y PostgreSQL real:
 - **Lock optimista** (columna `version` en `accounts` y reintento si el `UPDATE` no afecta filas). Muy eficiente con poca contención y sin locks mientras se decide, pero exige un ciclo de reintentos y vuelve menos directo el comportamiento de ORD-28. Es la **evolución** natural si la contención por cuenta llegara a importar.
 - **Updates condicionales** (`UPDATE accounts SET cash = cash − :importe WHERE id = ? AND cash − reserved_cash >= :importe`). Lo más rápido, pero saca la regla del disponible del dominio y la pone en el `WHERE`, y el costo promedio también tendría que calcularse en SQL.
 - **Aislamiento `SERIALIZABLE`.** PostgreSQL detecta el conflicto y aborta una transacción, pero exige reintentos y es el modelo más difícil de razonar y testear.
-- **Lock advisory** (`pg_advisory_xact_lock(user_id)`). Funciona, pero el lock no está atado a ninguna fila y su significado queda implícito. Tenía sentido antes de que existiera la fila de la cuenta.
+- **Lock advisory** (`pg_advisory_xact_lock(user_id)`). Vive solo en la memoria del servidor y no escribe nada en la tabla, mientras que `SELECT ... FOR UPDATE` marca el lock en el encabezado de la fila, lo que ensucia la página y genera un registro en el WAL (sin crear versiones nuevas de la fila). Es una ventaja menor frente a su costo: el lock no está atado a ninguna fila y su significado queda implícito, porque cualquier código puede tomar o ignorar el mismo número sin que la base lo relacione con la cuenta. Tenía sentido antes de que existiera la fila de la cuenta.
 
 ## Consecuencias
 
