@@ -23,6 +23,7 @@ SELECT ... FROM accounts WHERE user_id = ? FOR UPDATE;
 @Transactional
 placeOrder(pedido):
   cuenta      = lock de la cuenta del usuario           -- si no existe → 404
+                                                        -- si está PENDING, se reconstruye acá (ADR-005)
   instrumento = instruments.find(id)                    -- 404; CURRENCY → 400
   cotización  = último precio del instrumento           -- puede no existir
   posición    = posición de la cuenta en el instrumento
@@ -36,7 +37,7 @@ placeOrder(pedido):
 ```
 @Transactional
 cancelOrder(usuario, orderId):
-  cuenta = lock de la cuenta del usuario
+  cuenta = lock de la cuenta del usuario                -- si está PENDING, se reconstruye acá
   orden  = orders.find(orderId, usuario)                -- si no existe o es de otro → 404
   orden.cancel()                                        -- si no está en NEW → 409
   update de la orden y liberación de la reserva

@@ -28,7 +28,7 @@ Las respuestas de error usan `application/problem+json`, con soporte nativo de S
 ```
 
 - **`status` es numérico**, como exige el RFC, y coincide con el status HTTP. La redundancia con el header es intencional: el body sigue siendo interpretable aunque un intermediario reescriba el status o un log guarde solo el body.
-- **`type`** identifica la clase de problema con una URN. No es una URL que se pueda abrir, porque no hay un sitio de documentación publicado; el catálogo vive en este ADR.
+- **`type`** identifica la clase de problema con una URN (`urn:cocos-challenge:problem:<problema>`). Es un identificador desacoplado de cualquier ubicación: el cliente lo compara como string, y la documentación de cada problema puede vivir en cualquier lugar (hoy, el catálogo de este ADR) y moverse sin que el identificador cambie. El namespace `cocos-challenge` no está registrado ante IANA, como exige RFC 8141 para las URN formales; es aceptable porque el valor solo tiene que ser único y estable dentro del contrato de esta API.
 - **`code`** es un campo propio, que el RFC permite, con un valor de un catálogo cerrado. Va uno a uno con `type`: `type` es lo que entiende cualquier herramienta de Problem Details y `code` es lo cómodo para que el cliente haga un `switch`. Los códigos nombran el problema que ve el cliente, no la causa técnica interna.
 
 ### Catálogo de códigos
@@ -58,6 +58,9 @@ El catálogo es parte del contrato de la API: un código nuevo requiere actualiz
 
 - **Formato de error propio** (`{ "error": "...", "code": 123 }`). Reinventa un estándar que Spring ya soporta y que entienden los clientes y las herramientas.
 - **`status` como string semántico** (`"status": "INVALID_ORDER_STATUS"`). Deja de cumplir el RFC: los clientes y librerías de Problem Details, incluido el `RestClient` de Spring, esperan un número. La necesidad de un identificador semántico se cubre con `type` y `code`.
+- **`type` como URL HTTPS** hacia un catálogo de problemas. Se puede abrir y lleva a la documentación, como recomienda el RFC, pero mezcla identificador con ubicación: si la documentación se mueve, el identificador cambia y los clientes que lo comparan se rompen.
+- **`type` como URI `tag:`** (RFC 4151). Formalmente válida sin registro y diseñada para identificadores que no se abren, pero es poco conocida y no aporta nada práctico sobre la URN.
+- **`type` como `about:blank`**, el valor por defecto del RFC. No distingue ningún problema y deja toda la semántica en `code`.
 - **Solo `type`, sin `code`.** Cumple el estándar sin redundancia, pero hacer un `switch` sobre URNs es incómodo para el cliente.
 - **`instance` con la ruta del pedido**, que es el valor por defecto de Spring. Refleja input del usuario y no ayuda a correlacionar con el log.
 

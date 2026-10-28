@@ -27,7 +27,7 @@ accounts (
   user_id         INT NOT NULL UNIQUE REFERENCES users(id),
   cash            NUMERIC(18,2) NOT NULL,
   reserved_cash   NUMERIC(18,2) NOT NULL CHECK (reserved_cash >= 0),
-  rebuilt_at      TIMESTAMP                        -- NULL: proyección pendiente de construir
+  projection_status VARCHAR(10) NOT NULL CHECK (projection_status IN ('READY', 'PENDING'))
 )
 
 positions (
@@ -70,11 +70,33 @@ No se usa un `CHECK` completo en la base porque la seed trae una tenencia de −
 
 ### Construcción y conciliación
 
-Una única **función de reconstrucción** recalcula la proyección completa de una cuenta desde el libro, recorriendo sus órdenes en orden cronológico con las mismas transiciones del dominio. Se usa para tres cosas:
+Una única **función de reconstrucción** recalcula la proyección completa de una cuenta desde el libro, recorriendo sus órdenes en orden cronológico con las mismas transiciones del dominio.
 
-- **Carga inicial.** La migración `V4` crea las tablas y una cuenta por usuario con `rebuilt_at` en `NULL`. Al arrancar, la aplicación reconstruye las cuentas pendientes y marca `rebuilt_at`. La reconstrucción corre durante la inicialización del contexto de Spring, **antes de que el servidor web acepte pedidos**, para que ninguna orden se valide contra una cuenta a medio armar.
+#### Cuándo hace falta reconstruir
+
+En operación normal nunca: cada orden actualiza la proyección en la misma transacción. La reconstrucción solo aparece en cuatro casos puntuales, y siempre por cuenta:
+
+1. **Carga inicial**, al pasar del modelo con solo el libro al modelo con proyección.
+2. **Recuperación de un desvío** que detectó la conciliación.
+3. **Cambio en la lógica de la proyección**, por ejemplo un método de costo distinto o una columna nueva.
+4. **Corrección manual del libro**, si un ajuste no pasó por el camino de escritura normal.
+
+#### Cómo se reconstruye
+
+- **Los cuatro casos solo marcan la cuenta como `PENDING`.** La migración `V4` crea una cuenta por usuario en ese estado.
+- **La cuenta se reconstruye en el primer acceso.** Cuando una operación toma el lock de la cuenta ([ADR-006](ADR-006-concurrency.md)) y la encuentra `PENDING`, la reconstruye dentro de la misma transacción, la marca `READY` y continúa. Ninguna operación ve una cuenta a medio armar y no hay condición de carrera, porque la reconstrucción ocurre bajo el mismo lock. El primer pedido de esa cuenta tarda lo que lleve recorrer su historial; los demás no se enteran. Esto incluye la consulta del portfolio: sobre una cuenta `PENDING`, también toma el lock y reconstruye.
+- **Nada ocurre en el arranque de la aplicación.** Atar la reconstrucción al arranque retrasaría el readiness de cada instancia en un entorno con autoscaling, haría que varias instancias compitan por las mismas cuentas y mezclaría atender pedidos con migrar datos.
+- **Si la reconstrucción falla**, la transacción se revierte, el pedido responde `INTERNAL_ERROR` ([ADR-007](ADR-007-error-handling.md)) y la cuenta sigue `PENDING`, así que se reintenta en el próximo acceso. El error queda en el log con el identificador de la ocurrencia.
+
+#### Conciliación
+
 - **Test de conciliación.** Aplica secuencias de órdenes y verifica que la proyección incremental sea igual a la reconstruida desde cero. Se ejecuta también al final de los tests de concurrencia.
 - **Chequeo bajo demanda**, que compara la proyección de una cuenta con su reconstrucción. En un broker real, la conciliación diaria es práctica estándar.
+
+#### Evolución documentada
+
+- **Job de reconstrucción en segundo plano.** Procesa las cuentas `PENDING` de forma proactiva, para que el costo no lo pague el primer pedido de cada cuenta. En un entorno con varias instancias, cada una toma cuentas con `SELECT ... FOR UPDATE SKIP LOCKED`, sin coordinación adicional. Con los cuatro usuarios de la seed no aporta nada medible, por eso no se implementa.
+- **Estado de error por cuenta.** Si una reconstrucción falla de forma persistente, la cuenta pasaría a un estado `FAILED` y respondería un error específico hasta que alguien intervenga, en lugar de reintentar en cada acceso.
 
 ## Alternativas consideradas
 
@@ -83,12 +105,14 @@ Una única **función de reconstrucción** recalcula la proyección completa de 
 - **Vista materializada de PostgreSQL.** `REFRESH` recalcula todo y no se actualiza con cada escritura.
 - **Snapshots periódicos más el delta posterior.** Reduce el costo de lectura pero mantiene el agregado, con más complejidad.
 - **Construir la proyección en una migración Java de Flyway** con el calculador del dominio. Acopla una migración, que debe ser inmutable, a código que va a evolucionar.
+- **Reconstruir las cuentas pendientes al arrancar la aplicación**, antes de aceptar pedidos. Bloquea el readiness, hace competir a las instancias entre sí y solo resuelve la carga inicial, no los otros tres casos.
+- **Bloquear las cuentas pendientes hasta que un job las procese.** Unifica los cuatro casos, pero agrega un estado visible para el usuario (la cuenta no puede operar) y una latencia que depende de la frecuencia del job. La reconstrucción en el primer acceso logra lo mismo sin bloquear.
 - **Efectivo como posición del instrumento ARS.** Más uniforme, pero separa las invariantes de pesos de la fila que se bloquea.
 
 ## Consecuencias
 
 - El envío de órdenes y el portfolio dejan de depender del tamaño del historial: el portfolio lee las posiciones de la cuenta y los últimos precios.
-- **Riesgo nuevo: desvío entre la proyección y el libro.** Se mitiga con la función única de reconstrucción, el test de conciliación y el chequeo bajo demanda.
+- **Riesgo nuevo: desvío entre la proyección y el libro.** Se mitiga con la función única de reconstrucción, el test de conciliación y el chequeo bajo demanda. Una cuenta con desvío se marca `PENDING` y se reconstruye en su próximo acceso.
 - La cancelación ya no es un `UPDATE` aislado: libera reservas en la cuenta y por eso también toma el lock ([ADR-006](ADR-006-concurrency.md)).
 - El costo promedio ponderado es incremental; **FIFO no**. Si Cocos respondiera que el método es FIFO, haría falta una tabla de lotes por posición.
 - Cualquier camino que escriba en el libro (por ejemplo, transferencias o la ejecución futura de órdenes LIMIT por el mercado) tiene que actualizar la proyección en la misma transacción. Una orden LIMIT ejecutada liberaría su reserva al precio límite y debitaría el importe al precio de ejecución.

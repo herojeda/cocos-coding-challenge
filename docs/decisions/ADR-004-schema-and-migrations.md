@@ -27,7 +27,7 @@ El `database.sql` original no se modifica. Cada cambio sobre el modelo provisto 
 | `V1__cocos_seed` | El `database.sql` provisto, sin cambios |
 | `V2__snake_case_naming` | Renombre de tablas y columnas: `marketdata` → `market_data`, `instrumentid` → `instrument_id`, `userid` → `user_id`, `accountnumber` → `account_number`, `previousclose` → `previous_close`. Son cambios de metadatos, instantáneos |
 | `V3__constraints_and_indexes` | Normalización de `instruments.type`, `NOT NULL` donde corresponde, `CHECK` sobre los enumerados, unicidad, índices, extensión `unaccent` y la columna `orders.rejection_reason` |
-| `V4__accounts_and_positions` | Tablas `accounts` y `positions`, alta de una cuenta por usuario y traspaso de `account_number` (ver [ADR-005](ADR-005-materialized-accounts.md)) |
+| `V4__accounts_and_positions` | Tablas `accounts` y `positions`, alta de una cuenta por usuario en estado `PENDING` y traspaso de `account_number`; la proyección se construye en el primer acceso a cada cuenta (ver [ADR-005](ADR-005-materialized-accounts.md)) |
 
 ### Contenido de `V3`
 
@@ -53,3 +53,4 @@ Todos los constraints se verificaron contra la seed: no hay tickers, emails ni c
 - El esquema final difiere del provisto; el README y este ADR lo explican.
 - **La app no debe ejecutarse contra la base de Neon provista por Cocos:** Flyway aplicaría estas migraciones sobre una base que probablemente es compartida entre candidatos. La configuración por defecto apunta a la base de docker-compose.
 - Agregar un valor a un enumerado requiere una migración que actualice su `CHECK`.
+- **Las migraciones se ejecutan al arrancar la aplicación solo por comodidad en local.** En un entorno productivo con varias instancias, Flyway corre como un paso separado del despliegue (un job o un init container), para que el arranque de cada instancia no dependa de migrar datos ni compita con otras instancias por hacerlo.
