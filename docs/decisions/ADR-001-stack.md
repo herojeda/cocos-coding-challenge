@@ -4,7 +4,7 @@
 
 ## Contexto
 
-El enunciado del challenge pide Node.js, pero Cocos pidió explícitamente resolverlo en Java. El proyecto tiene que poder ejecutarse localmente y el evaluador tiene que poder leerlo, correrlo y entender las decisiones sin fricción. El repo arrancó con un scaffold de Gradle (Kotlin DSL, wrapper 9.3) cuyo `Main.java` ya usa características de Java 25.
+El enunciado del challenge pide Node.js, pero Cocos pidió explícitamente resolverlo en Java. El proyecto tiene que poder ejecutarse localmente con el menor número de dependencias externas posible. El repo arrancó con un scaffold de Gradle (Kotlin DSL, wrapper 9.3) cuyo `Main.java` ya usa características de Java 25.
 
 ## Decisión
 

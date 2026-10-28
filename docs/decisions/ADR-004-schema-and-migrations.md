@@ -43,7 +43,7 @@ Todos los constraints se verificaron contra la seed: no hay tickers, emails ni c
 
 ## Alternativas consideradas
 
-- **Mantener los nombres originales.** Evita diferencias con el esquema que conoce el evaluador, pero deja nombres pegados (`instrumentid`) y obliga a depender de la coincidencia sin distinguir mayúsculas en el mapeo. Las migraciones separadas hacen que el cambio sea fácil de seguir.
+- **Mantener los nombres originales.** Evita diferencias con el esquema provisto, pero deja nombres pegados (`instrumentid`) y obliga a depender de la coincidencia sin distinguir mayúsculas en el mapeo. Las migraciones separadas hacen que el cambio sea fácil de seguir.
 - **Renombrar también los conceptos** (`datetime` → `created_at`, `date` → `trade_date`). Más expresivo, pero pierde la correspondencia obvia con el enunciado.
 - **Corregir el `database.sql`** en lugar de migrar. Pierde la trazabilidad de qué se cambió sobre el modelo provisto.
 - **Liquibase.** Más potente, pero más verboso para un esquema chico.
