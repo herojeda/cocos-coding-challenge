@@ -4,7 +4,7 @@
 
 ## Contexto
 
-Las reglas de negocio del challenge (reservas, rechazos con motivo, cálculo por monto, costo promedio) son lo que más interesa testear de forma aislada, y varias dependen de supuestos que Cocos todavía puede cambiar. A la vez, son cuatro casos de uso: la estructura no debe convertirse en ceremonia.
+Las reglas de negocio del challenge (reservas, rechazos con motivo, cálculo por monto, costo promedio) son lo que más interesa testear de forma aislada, y varias dependen de supuestos que estamos validando con Cocos. A la vez, son cuatro casos de uso: la estructura no debe convertirse en ceremonia.
 
 ## Decisión
 
