@@ -84,9 +84,10 @@ En operación normal nunca: cada orden actualiza la proyección en la misma tran
 #### Cómo se reconstruye
 
 - **Los cuatro casos solo marcan la cuenta como `PENDING`.** La migración `V4` crea una cuenta por usuario en ese estado.
-- **La cuenta se reconstruye en el primer acceso.** Cuando una operación toma el lock de la cuenta ([ADR-006](ADR-006-concurrency.md)) y la encuentra `PENDING`, la reconstruye dentro de la misma transacción, la marca `READY` y continúa. Ninguna operación ve una cuenta a medio armar y no hay condición de carrera, porque la reconstrucción ocurre bajo el mismo lock. El primer pedido de esa cuenta tarda lo que lleve recorrer su historial; los demás no se enteran. Esto incluye la consulta del portfolio: sobre una cuenta `PENDING`, también toma el lock y reconstruye.
+- **La cuenta se reconstruye en la primera escritura.** Cuando una operación que escribe (envío o cancelación de una orden) toma el lock de la cuenta ([ADR-006](ADR-006-concurrency.md)) y la encuentra `PENDING`, la reconstruye dentro de la misma transacción, la marca `READY` y continúa. Ninguna escritura se aplica sobre una cuenta a medio armar y no hay condición de carrera, porque la reconstrucción ocurre bajo el mismo lock. La primera escritura de esa cuenta tarda lo que lleve recorrer su historial; las demás no se enteran.
+- **Las consultas nunca toman el lock ni escriben.** La consulta del portfolio corre en una transacción de solo lectura con aislamiento `REPEATABLE READ`, para que la cuenta y sus posiciones salgan de la misma foto de los datos (en `READ COMMITTED`, una orden que se confirma entre las dos lecturas daría un total que no cierra). Si la cuenta está `READY`, lee la proyección. Si está `PENDING`, calcula la proyección en memoria con la misma función de reconstrucción, desde el libro, sin guardarla. El resultado es el mismo que la reconstrucción va a persistir, y la consulta conserva su semántica: no tiene efectos, no compite con las escrituras por el lock y podría atenderse desde una réplica de lectura.
 - **Nada ocurre en el arranque de la aplicación.** Atar la reconstrucción al arranque retrasaría el readiness de cada instancia en un entorno con autoscaling, haría que varias instancias compitan por las mismas cuentas y mezclaría atender pedidos con migrar datos.
-- **Si la reconstrucción falla**, la transacción se revierte, el pedido responde `INTERNAL_ERROR` ([ADR-007](ADR-007-error-handling.md)) y la cuenta sigue `PENDING`, así que se reintenta en el próximo acceso. El error queda en el log con el identificador de la ocurrencia.
+- **Si la reconstrucción falla**, la transacción se revierte, el pedido responde `INTERNAL_ERROR` ([ADR-007](ADR-007-error-handling.md)) y la cuenta sigue `PENDING`, así que se reintenta en la próxima escritura. El error queda en el log con el identificador de la ocurrencia.
 
 #### Conciliación
 
@@ -106,13 +107,14 @@ En operación normal nunca: cada orden actualiza la proyección en la misma tran
 - **Snapshots periódicos más el delta posterior.** Reduce el costo de lectura pero mantiene el agregado, con más complejidad.
 - **Construir la proyección en una migración Java de Flyway** con el calculador del dominio. Acopla una migración, que debe ser inmutable, a código que va a evolucionar.
 - **Reconstruir las cuentas pendientes al arrancar la aplicación**, antes de aceptar pedidos. Bloquea el readiness, hace competir a las instancias entre sí y solo resuelve la carga inicial, no los otros tres casos.
+- **Reconstruir y persistir también desde las consultas**, tomando el lock. Haría que una lectura tenga efectos: rompe la semántica de una consulta HTTP segura, hace competir las lecturas con las escrituras por el lock e impide atender consultas desde una réplica de lectura.
 - **Bloquear las cuentas pendientes hasta que un job las procese.** Unifica los cuatro casos, pero agrega un estado visible para el usuario (la cuenta no puede operar) y una latencia que depende de la frecuencia del job. La reconstrucción en el primer acceso logra lo mismo sin bloquear.
 - **Efectivo como posición del instrumento ARS.** Más uniforme, pero separa las invariantes de pesos de la fila que se bloquea.
 
 ## Consecuencias
 
 - El envío de órdenes y el portfolio dejan de depender del tamaño del historial: el portfolio lee las posiciones de la cuenta y los últimos precios.
-- **Riesgo nuevo: desvío entre la proyección y el libro.** Se mitiga con la función única de reconstrucción, el test de conciliación y el chequeo bajo demanda. Una cuenta con desvío se marca `PENDING` y se reconstruye en su próximo acceso.
+- **Riesgo nuevo: desvío entre la proyección y el libro.** Se mitiga con la función única de reconstrucción, el test de conciliación y el chequeo bajo demanda. Una cuenta con desvío se marca `PENDING` y se reconstruye en su próxima escritura.
 - La cancelación ya no es un `UPDATE` aislado: libera reservas en la cuenta y por eso también toma el lock ([ADR-006](ADR-006-concurrency.md)).
 - El costo promedio ponderado es incremental; **FIFO no**. Si Cocos respondiera que el método es FIFO, haría falta una tabla de lotes por posición.
 - Cualquier camino que escriba en el libro (por ejemplo, transferencias o la ejecución futura de órdenes LIMIT por el mercado) tiene que actualizar la proyección en la misma transacción. Una orden LIMIT ejecutada liberaría su reserva al precio límite y debitaría el importe al precio de ejecución.

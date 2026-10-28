@@ -27,7 +27,7 @@ El `database.sql` original no se modifica. Cada cambio sobre el modelo provisto 
 | `V1__cocos_seed` | El `database.sql` provisto, sin cambios |
 | `V2__snake_case_naming` | Renombre de tablas y columnas: `marketdata` → `market_data`, `instrumentid` → `instrument_id`, `userid` → `user_id`, `accountnumber` → `account_number`, `previousclose` → `previous_close`. Son cambios de metadatos, instantáneos |
 | `V3__constraints_and_indexes` | Normalización de `instruments.type`, `NOT NULL` donde corresponde, `CHECK` sobre los enumerados, unicidad, índices, extensión `unaccent` y la columna `orders.rejection_reason` |
-| `V4__accounts_and_positions` | Tablas `accounts` y `positions`, alta de una cuenta por usuario en estado `PENDING` y traspaso de `account_number`; la proyección se construye en el primer acceso a cada cuenta (ver [ADR-005](ADR-005-materialized-accounts.md)) |
+| `V4__accounts_and_positions` | Tablas `accounts` y `positions`, alta de una cuenta por usuario en estado `PENDING` y traspaso de `account_number`; la proyección se persiste en la primera escritura de cada cuenta (ver [ADR-005](ADR-005-materialized-accounts.md)) |
 
 ### Contenido de `V3`
 
