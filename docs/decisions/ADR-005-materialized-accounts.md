@@ -24,7 +24,7 @@ El libro de órdenes sigue siendo la fuente de verdad. El efectivo, las reservas
 accounts (
   id              BIGSERIAL PRIMARY KEY,
   account_number  VARCHAR(20) NOT NULL UNIQUE,     -- se mueve desde users
-  user_id         INT NOT NULL UNIQUE REFERENCES users(id),
+  user_id         BIGINT NOT NULL UNIQUE REFERENCES users(id),
   cash            NUMERIC(18,2) NOT NULL,
   reserved_cash   NUMERIC(18,2) NOT NULL CHECK (reserved_cash >= 0),
   projection_status VARCHAR(10) NOT NULL CHECK (projection_status IN ('READY', 'PENDING'))
@@ -32,7 +32,7 @@ accounts (
 
 positions (
   account_id         BIGINT NOT NULL REFERENCES accounts(id),
-  instrument_id      INT NOT NULL REFERENCES instruments(id),
+  instrument_id      BIGINT NOT NULL REFERENCES instruments(id),
   quantity           INT NOT NULL,
   reserved_quantity  INT NOT NULL CHECK (reserved_quantity >= 0),
   average_cost       NUMERIC(18,6),                -- NULL si la tenencia no es positiva
