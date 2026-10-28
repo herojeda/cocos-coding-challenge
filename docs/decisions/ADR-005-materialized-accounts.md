@@ -108,7 +108,7 @@ En operación normal nunca: cada orden actualiza la proyección en la misma tran
 - **Construir la proyección en una migración Java de Flyway** con el calculador del dominio. Acopla una migración, que debe ser inmutable, a código que va a evolucionar.
 - **Reconstruir las cuentas pendientes al arrancar la aplicación**, antes de aceptar pedidos. Bloquea el readiness, hace competir a las instancias entre sí y solo resuelve la carga inicial, no los otros tres casos.
 - **Reconstruir y persistir también desde las consultas**, tomando el lock. Haría que una lectura tenga efectos: rompe la semántica de una consulta HTTP segura, hace competir las lecturas con las escrituras por el lock e impide atender consultas desde una réplica de lectura.
-- **Bloquear las cuentas pendientes hasta que un job las procese.** Unifica los cuatro casos, pero agrega un estado visible para el usuario (la cuenta no puede operar) y una latencia que depende de la frecuencia del job. La reconstrucción en el primer acceso logra lo mismo sin bloquear.
+- **Bloquear las cuentas pendientes hasta que un job las procese.** Unifica los cuatro casos, pero agrega un estado visible para el usuario (la cuenta no puede operar) y una latencia que depende de la frecuencia del job. La reconstrucción en la primera escritura, junto con el cálculo en memoria para las consultas, logra lo mismo sin bloquear.
 - **Efectivo como posición del instrumento ARS.** Más uniforme, pero separa las invariantes de pesos de la fila que se bloquea.
 
 ## Consecuencias
