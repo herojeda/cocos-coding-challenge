@@ -33,8 +33,8 @@ accounts (
 positions (
   account_id         BIGINT NOT NULL REFERENCES accounts(id),
   instrument_id      BIGINT NOT NULL REFERENCES instruments(id),
-  quantity           INT NOT NULL,
-  reserved_quantity  INT NOT NULL CHECK (reserved_quantity >= 0),
+  quantity           BIGINT NOT NULL,
+  reserved_quantity  BIGINT NOT NULL CHECK (reserved_quantity >= 0),
   average_cost       NUMERIC(18,6),                -- NULL si la tenencia no es positiva
   realized_pnl       NUMERIC(18,2) NOT NULL,
   PRIMARY KEY (account_id, instrument_id)

@@ -10,6 +10,7 @@ Cocos provee la base con un [`database.sql`](https://github.com/cocos-capital/co
 - **Los valores de enumerados mezclan idiomas:** `instruments.type` usa `ACCIONES` y `MONEDA`, mientras que las órdenes usan `BUY`, `FILLED` o `MARKET`.
 - **No hay constraints ni índices** más allá de las claves primarias y foráneas: no hay `NOT NULL`, ni unicidad de ticker, email o número de cuenta, ni `CHECK` sobre los enumerados.
 - **Los identificadores son `INTEGER`** (`SERIAL` y FKs `INT`), con un máximo de 2.147.483.647 valores. Para `orders`, un libro que crece con cada operación de cada usuario y nunca se depura, es un límite alcanzable en un broker real; y migrar el tipo de una clave primaria con la tabla ya grande es una operación costosa, que bloquea la tabla mientras la reescribe.
+- **`orders.size` es `INTEGER` y mezcla dos semánticas:** la cantidad de acciones de una compra o venta, que siempre es entera, y el monto en pesos de un `CASH_IN` o `CASH_OUT`, que no lo es. Con `INTEGER`, una transferencia no puede tener centavos ni superar los 2.147 millones de pesos.
 - **Falta lo que las specs necesitan:** la extensión `unaccent` para la búsqueda y una columna para el motivo del rechazo ([S13](../assumptions.md)).
 
 ## Decisión
@@ -18,6 +19,7 @@ Cocos provee la base con un [`database.sql`](https://github.com/cocos-capital/co
 
 - **Nombres en snake_case**, que es la convención estándar en PostgreSQL porque es lo único que sobrevive sin comillas. Solo cambian los separadores, sin renombrar conceptos: `datetime` sigue siendo `datetime`, para no perder la correspondencia con el enunciado.
 - **Identificadores `BIGINT`** en todas las claves primarias y foráneas, con secuencias `BIGINT`: el equivalente a `BIGSERIAL`. Se aplica a todas las tablas y no solo a `orders`, para que cada clave foránea tenga el mismo tipo que la clave que referencia y el código use un único tipo de identificador (`long`).
+- **`orders.size` como `NUMERIC(18,2)`**, para que el libro pueda registrar montos en pesos con centavos y sin el límite de 32 bits. La regla de que una cantidad de acciones es entera no se pierde: se mueve a un `CHECK` de la propia fila y al dominio.
 - **Valores de enumerados en inglés y en mayúsculas**, iguales en la base, en el código y en el contrato de la API. `instruments.type` se normaliza: `ACCIONES` → `STOCK`, `MONEDA` → `CURRENCY`.
 
 ### Migraciones con Flyway
@@ -28,12 +30,13 @@ El `database.sql` original no se modifica. Cada cambio sobre el modelo provisto 
 |---|---|
 | `V1__cocos_seed` | El `database.sql` provisto, sin cambios |
 | `V2__snake_case_naming` | Renombre de tablas y columnas: `marketdata` → `market_data`, `instrumentid` → `instrument_id`, `userid` → `user_id`, `accountnumber` → `account_number`, `previousclose` → `previous_close`. Son cambios de metadatos, instantáneos |
-| `V3__constraints_and_indexes` | Identificadores `BIGINT`, normalización de `instruments.type`, `NOT NULL` donde corresponde, `CHECK` sobre los enumerados, unicidad, índices, extensión `unaccent` y la columna `orders.rejection_reason` |
+| `V3__constraints_and_indexes` | Identificadores `BIGINT`, `orders.size` como `NUMERIC(18,2)`, normalización de `instruments.type`, `NOT NULL` donde corresponde, `CHECK` sobre los enumerados, unicidad, índices, extensión `unaccent` y la columna `orders.rejection_reason` |
 | `V4__accounts_and_positions` | Tablas `accounts` y `positions`, alta de una cuenta por usuario en estado `PENDING` y traspaso de `account_number`; la proyección se persiste en la primera escritura de cada cuenta (ver [ADR-005](ADR-005-materialized-accounts.md)) |
 
 ### Contenido de `V3`
 
 - **Identificadores:** `ALTER COLUMN ... TYPE BIGINT` en las claves primarias de `users`, `instruments`, `orders` y `market_data`, y en las foráneas `orders.user_id`, `orders.instrument_id` y `market_data.instrument_id`. Cambiar el tipo de la columna no alcanza: la secuencia que creó `SERIAL` también es `INTEGER` y tiene su propio máximo, así que cada una se modifica con `ALTER SEQUENCE ... AS BIGINT`. A diferencia del renombre de `V2`, este cambio reescribe las tablas; con la seed es instantáneo, y por eso se hace ahora y no con datos de producción.
+- **Cantidad de las órdenes:** `ALTER COLUMN size TYPE NUMERIC(18,2)`, con dos `CHECK`: `size > 0`, y `side IN ('CASH_IN', 'CASH_OUT') OR size = trunc(size)`, que exige una cantidad entera en compras y ventas. El segundo `CHECK` se puede expresar sobre la fila porque el lado de la orden alcanza para distinguir una transferencia de una operación con acciones. Igual que el cambio de identificadores, reescribe la tabla, y por eso se hace sobre la seed.
 - **Enumerados:** `CHECK` sobre `instruments.type` (`STOCK`, `CURRENCY`), `orders.side` (`BUY`, `SELL`, `CASH_IN`, `CASH_OUT`), `orders.type` (`MARKET`, `LIMIT`) y `orders.status` (`NEW`, `FILLED`, `REJECTED`, `CANCELLED`). Se eligió `CHECK` sobre `VARCHAR` en lugar de tipos `ENUM` de PostgreSQL porque agregar un valor a un `CHECK` es una migración trivial y reversible.
 - **Unicidad:** `instruments.ticker` (el sistema opera un único mercado, [S4](../assumptions.md)), `users.email` sin distinguir mayúsculas (índice único sobre `lower(email)`) y `market_data(instrument_id, date)`, una cotización por instrumento y día.
 - **Motivo del rechazo:** `orders.rejection_reason`, con `CHECK` sobre `INSUFFICIENT_CASH`, `INSUFFICIENT_HOLDINGS` y `NO_MARKET_PRICE`, y un `CHECK` que impide un motivo en una orden que no esté `REJECTED`. La orden `REJECTED` preexistente de la seed queda sin motivo.
@@ -51,6 +54,8 @@ Todos los constraints se verificaron contra la seed: no hay tickers, emails ni c
 - **Corregir el `database.sql`** en lugar de migrar. Pierde la trazabilidad de qué se cambió sobre el modelo provisto.
 - **`BIGINT` solo en `orders`.** Es la única tabla que hoy puede acercarse al límite, pero deja tipos distintos entre tablas y obliga a convertir entre `int` y `long` en el código. El costo de `BIGINT` en el resto es de 4 bytes por fila y por índice, irrelevante en tablas chicas.
 - **Columnas de identidad** (`GENERATED ALWAYS AS IDENTITY`), la forma recomendada en PostgreSQL moderno en lugar de `SERIAL`: impiden insertar un id manual por error y la secuencia queda ligada a la columna. Convertir las columnas existentes es más invasivo que cambiar su tipo, y el beneficio no cambia ningún comportamiento del sistema; las tablas nuevas de [ADR-005](ADR-005-materialized-accounts.md) siguen la misma convención que las existentes.
+- **Separar las transferencias de las órdenes** en una tabla propia con un monto `NUMERIC`. Es el modelo más limpio, pero el enunciado pide modelar las transferencias como órdenes y calcular el saldo desde `orders`.
+- **Agregar una columna `amount`** para los montos en pesos y dejar `size` solo para acciones. Evita mezclar semánticas, pero deja dos columnas mutuamente excluyentes y obliga a que cada cálculo sobre el libro elija cuál leer según el lado.
 - **UUID como identificador.** Evita exponer identificadores secuenciales y permite generarlos fuera de la base, pero cambia el contrato de todas las entidades provistas y los índices son más grandes y menos eficientes para inserciones (salvo con UUIDv7). No hay un requisito que lo justifique.
 - **Liquibase.** Más potente, pero más verboso para un esquema chico.
 
@@ -59,5 +64,6 @@ Todos los constraints se verificaron contra la seed: no hay tickers, emails ni c
 - El esquema final difiere del provisto; el README y este ADR lo explican.
 - **La app no debe ejecutarse contra la base de Neon provista por Cocos:** Flyway aplicaría estas migraciones sobre una base que probablemente es compartida entre candidatos. La configuración por defecto apunta a la base de docker-compose.
 - Los identificadores se manejan como `long` en el código y en el contrato de la API.
+- En el dominio, la cantidad de una compra o venta se representa como un entero y el monto de una transferencia como un `BigDecimal`. El adaptador de persistencia convierte desde la columna `NUMERIC`.
 - Agregar un valor a un enumerado requiere una migración que actualice su `CHECK`.
 - **Las migraciones se ejecutan al arrancar la aplicación solo por comodidad en local.** En un entorno productivo con varias instancias, Flyway corre como un paso separado del despliegue (un job o un init container), para que el arranque de cada instancia no dependa de migrar datos ni compita con otras instancias por hacerlo.

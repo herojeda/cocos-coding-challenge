@@ -146,7 +146,7 @@ Como datos complementarios se exponen el **resultado realizado** (`(precio de ve
 
 **Decisión:** las transferencias (`CASH_IN` y `CASH_OUT`) se modelan como órdenes y se tienen en cuenta en todos los cálculos, pero no se pueden originar desde la API: el enunciado no las pide. Si se implementaran, un `CASH_OUT` debería validarse contra el disponible, igual que una compra.
 
-**Limitación conocida:** la cantidad de una orden es un número entero, así que no se pueden registrar transferencias con centavos.
+**Modelo de datos:** el monto de una transferencia se registra en la cantidad de la orden, que admite dos decimales. En compras y ventas, la cantidad sigue siendo un número entero de acciones ([ADR-004](decisions/ADR-004-schema-and-migrations.md)).
 
 **Afecta a:** `account-balance`, `order-placement`.
 
