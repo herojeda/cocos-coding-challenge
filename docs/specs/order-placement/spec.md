@@ -6,9 +6,9 @@ title: Envío de órdenes
 
 ## Purpose
 
-Permite a un usuario enviar al mercado órdenes de compra o venta de acciones, de tipo MARKET o LIMIT, indicando la cantidad de acciones o un monto en pesos. Cubre la validación del pedido, el cálculo de la cantidad por monto, la ejecución inmediata de las órdenes MARKET, el alta en `NEW` de las órdenes LIMIT, el rechazo por falta de disponible y el registro de cada orden en el libro.
+Permite a un usuario enviar al mercado órdenes de compra o venta de acciones, de tipo MARKET o LIMIT, indicando la cantidad de acciones o un monto en pesos. Cubre la validación del pedido, el cálculo de la cantidad por monto, la ejecución inmediata de las órdenes MARKET, el alta en `NEW` de las órdenes LIMIT, el rechazo con su motivo y el registro de cada orden en el libro.
 
-Fuentes: [enunciado del challenge](https://github.com/cocos-capital/cocos-challenge/blob/main/backend-challenge.md), [database.sql](https://github.com/cocos-capital/cocos-challenge/blob/main/database.sql), [supuestos S1, S3, S5, S6, S7, S8, S9, S11 y S12](../../assumptions.md).
+Fuentes: [enunciado del challenge](https://github.com/cocos-capital/cocos-challenge/blob/main/backend-challenge.md), [database.sql](https://github.com/cocos-capital/cocos-challenge/blob/main/database.sql), [supuestos S1, S3, S5, S6, S7, S8, S9, S11, S12 y S13](../../assumptions.md).
 
 Fuera de alcance: cálculo del disponible y de las reservas (`account-balance`); cancelación de órdenes pendientes (`order-cancellation`); ejecución de órdenes LIMIT pendientes, porque no se simula el mercado; transferencias `CASH_IN` y `CASH_OUT`, que se registran como órdenes pero no se envían desde esta capacidad.
 
@@ -167,7 +167,8 @@ Una compra cuyo importe (`cantidad × precio`, con el último precio en MARKET y
 - **AND** el último precio de GGAL es 885,80
 - **WHEN** envía una orden BUY MARKET de 200 GGAL
 - **THEN** la orden se registra `REJECTED`
-- **AND** la respuesta informa el estado `REJECTED`
+- **AND** el motivo del rechazo es `INSUFFICIENT_CASH`
+- **AND** la respuesta informa el estado `REJECTED` y su motivo
 - **AND** sus pesos disponibles siguen siendo 100.000 ARS
 
 #### Scenario: ORD-18 · Una reserva previa reduce el disponible
@@ -177,6 +178,7 @@ Una compra cuyo importe (`cantidad × precio`, con el último precio en MARKET y
 - **AND** el último precio de GGAL es 885,80
 - **WHEN** envía una orden BUY MARKET de 20 GGAL, por 17.716 ARS
 - **THEN** la orden se registra `REJECTED`
+- **AND** el motivo del rechazo es `INSUFFICIENT_CASH`
 
 #### Scenario: ORD-19 · Compra por exactamente el disponible
 
@@ -191,6 +193,7 @@ Una compra cuyo importe (`cantidad × precio`, con el último precio en MARKET y
 - **GIVEN** un usuario con 5.000 ARS disponibles
 - **WHEN** envía una orden BUY LIMIT de 10 GGAL a 850
 - **THEN** la orden se registra `REJECTED`
+- **AND** el motivo del rechazo es `INSUFFICIENT_CASH`
 - **AND** no reserva pesos
 
 ### Requirement: Rechazo de ventas por acciones insuficientes
@@ -202,6 +205,7 @@ Una venta por una cantidad mayor a las acciones disponibles para vender del inst
 - **GIVEN** un usuario con 40 PAMP
 - **WHEN** envía una orden SELL MARKET de 50 PAMP
 - **THEN** la orden se registra `REJECTED`
+- **AND** el motivo del rechazo es `INSUFFICIENT_HOLDINGS`
 - **AND** su tenencia de PAMP sigue siendo 40
 
 #### Scenario: ORD-22 · Acciones comprometidas en una venta límite
@@ -210,18 +214,21 @@ Una venta por una cantidad mayor a las acciones disponibles para vender del inst
 - **AND** una orden SELL LIMIT `NEW` de 30 PAMP
 - **WHEN** envía una orden SELL MARKET de 20 PAMP
 - **THEN** la orden se registra `REJECTED`
+- **AND** el motivo del rechazo es `INSUFFICIENT_HOLDINGS`
 
 #### Scenario: ORD-23 · Venta sobre una tenencia negativa
 
 - **GIVEN** el usuario 1 de la seed, con tenencia de −10 BMA
 - **WHEN** envía una orden SELL MARKET de 1 BMA
 - **THEN** la orden se registra `REJECTED`
+- **AND** el motivo del rechazo es `INSUFFICIENT_HOLDINGS`
 
 #### Scenario: ORD-24 · Venta de un instrumento que no tiene
 
 - **GIVEN** un usuario sin tenencia de GGAL
 - **WHEN** envía una orden SELL LIMIT de 5 GGAL a 900
 - **THEN** la orden se registra `REJECTED`
+- **AND** el motivo del rechazo es `INSUFFICIENT_HOLDINGS`
 
 Tratamiento de la tenencia negativa según el supuesto [S3](../../assumptions.md).
 
@@ -235,6 +242,7 @@ Una orden MARKET sobre un instrumento que no tiene ninguna cotización DEBE regi
 - **AND** PGR no tiene ninguna cotización registrada
 - **WHEN** envía una orden BUY MARKET de 10 PGR
 - **THEN** la orden se registra `REJECTED` sin precio
+- **AND** el motivo del rechazo es `NO_MARKET_PRICE`
 
 #### Scenario: ORD-26 · Compra LIMIT sin cotización
 
@@ -245,9 +253,30 @@ Una orden MARKET sobre un instrumento que no tiene ninguna cotización DEBE regi
 
 El tratamiento de instrumentos sin cotización *(pendiente: confirmar supuesto [S5](../../assumptions.md) con Cocos)*. Qué cantidad se registra en una orden MARKET por monto rechazada por falta de cotización, ya que sin precio no se puede calcular *(pendiente: definir)*.
 
+### Requirement: Motivo del rechazo
+
+Toda orden que el sistema registra en estado `REJECTED` DEBE registrar y devolver el motivo del rechazo, con un valor de un catálogo cerrado: `INSUFFICIENT_CASH` (pesos disponibles insuficientes para una compra), `INSUFFICIENT_HOLDINGS` (acciones disponibles insuficientes para una venta) o `NO_MARKET_PRICE` (orden MARKET sobre un instrumento sin cotización). Una orden en cualquier otro estado NO DEBE tener motivo de rechazo. Si una orden MARKET no tiene cotización, el motivo DEBE ser `NO_MARKET_PRICE`, porque sin precio no se puede calcular su importe para validar el disponible.
+
+#### Scenario: ORD-30 · Una orden aceptada no tiene motivo de rechazo
+
+- **GIVEN** un usuario con 100.000 ARS disponibles
+- **WHEN** envía una orden BUY LIMIT de 10 GGAL a 850
+- **THEN** la orden se registra `NEW`
+- **AND** no informa motivo de rechazo
+
+#### Scenario: ORD-31 · Sin cotización y sin pesos suficientes
+
+- **GIVEN** un usuario con 0 ARS disponibles
+- **AND** PGR no tiene ninguna cotización registrada
+- **WHEN** envía una orden BUY MARKET de 10 PGR
+- **THEN** la orden se registra `REJECTED`
+- **AND** el motivo del rechazo es `NO_MARKET_PRICE`
+
+Las órdenes `REJECTED` que ya existen en la seed no tienen motivo registrado y se informan sin él. Motivo del rechazo según el supuesto [S13](../../assumptions.md).
+
 ### Requirement: Registro de la orden
 
-Toda orden aceptada o rechazada DEBE quedar registrada con el usuario, el instrumento, el lado, el tipo, la cantidad, el precio, el estado y la fecha y hora de envío. La respuesta DEBE devolver la orden registrada con su identificador y su estado.
+Toda orden aceptada o rechazada DEBE quedar registrada con el usuario, el instrumento, el lado, el tipo, la cantidad, el precio, el estado, el motivo del rechazo si corresponde y la fecha y hora de envío. La respuesta DEBE devolver la orden registrada con su identificador y su estado.
 
 #### Scenario: ORD-27 · Respuesta de una orden registrada
 
@@ -266,6 +295,7 @@ El sistema NO DEBE aceptar órdenes simultáneas de un mismo usuario que, en con
 - **AND** el último precio de GGAL es 885,80
 - **WHEN** envía al mismo tiempo dos órdenes BUY MARKET de 10 GGAL, de 8.858 ARS cada una
 - **THEN** una orden se registra `FILLED` y la otra `REJECTED`
+- **AND** la orden rechazada tiene el motivo `INSUFFICIENT_CASH`
 - **AND** su efectivo NO DEBE quedar negativo
 
 #### Scenario: ORD-29 · Dos ventas simultáneas que superan la tenencia
@@ -273,4 +303,5 @@ El sistema NO DEBE aceptar órdenes simultáneas de un mismo usuario que, en con
 - **GIVEN** un usuario con 40 PAMP
 - **WHEN** envía al mismo tiempo dos órdenes SELL MARKET de 30 PAMP
 - **THEN** una orden se registra `FILLED` y la otra `REJECTED`
+- **AND** la orden rechazada tiene el motivo `INSUFFICIENT_HOLDINGS`
 - **AND** su tenencia de PAMP NO DEBE quedar negativa
