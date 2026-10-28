@@ -8,7 +8,7 @@ title: Cancelación de órdenes
 
 Permite a un usuario cancelar una orden propia que todavía está pendiente en el mercado. Cubre qué órdenes se pueden cancelar, la liberación de lo que la orden tenía reservado, la pertenencia de la orden y las cancelaciones simultáneas.
 
-Fuentes: [enunciado del challenge](https://github.com/cocos-capital/cocos-challenge/blob/main/backend-challenge.md), [supuestos S1 y S11](../../assumptions.md).
+Fuentes: [enunciado del challenge](https://github.com/cocos-capital/cocos-challenge/blob/main/backend-challenge.md), [supuestos S1 y S11](../../assumptions.md), [ADR-006](../../decisions/ADR-006-concurrency.md).
 
 Fuera de alcance: cálculo de reservas y disponible (`account-balance`); alta de órdenes (`order-placement`); modificación de una orden pendiente (precio o cantidad), que el enunciado no pide.
 
@@ -98,3 +98,17 @@ Si llegan al mismo tiempo dos pedidos para cancelar la misma orden, el sistema D
 - **WHEN** envía al mismo tiempo dos pedidos para cancelarla
 - **THEN** un pedido deja la orden en estado `CANCELLED`
 - **AND** el otro se responde con un error de conflicto
+
+### Requirement: Cuenta ocupada
+
+Si otra operación sobre la misma cuenta impide procesar la cancelación dentro del tiempo máximo de espera, el pedido DEBE responderse con un error de conflicto que indique que la cuenta está ocupada y que se puede reintentar. En ese caso la orden NO DEBE modificarse.
+
+#### Scenario: CXL-10 · La cuenta queda ocupada más allá del tiempo máximo
+
+- **GIVEN** un usuario con una orden BUY LIMIT `NEW` de 10 GGAL a 850
+- **AND** otra operación sobre su cuenta que se demora más que el tiempo máximo de espera
+- **WHEN** intenta cancelar la orden
+- **THEN** el pedido se responde con un error de conflicto con el código `ACCOUNT_BUSY`
+- **AND** la orden sigue en estado `NEW`
+
+El tiempo máximo de espera es configurable, con 2 segundos por defecto. Mecanismo según [ADR-006](../../decisions/ADR-006-concurrency.md).

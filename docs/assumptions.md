@@ -69,11 +69,11 @@ Como datos complementarios se exponen el **resultado realizado** (`(precio de ve
 
 **Estado:** pendiente de confirmación.
 
-**Supuesto:** la relación entre usuario y cuenta es 1 a 1, como en el modelo actual: la cuenta no se modela como una entidad aparte. Se agrega unicidad sobre `accountNumber` y sobre el email (sin distinguir mayúsculas). Como el sistema opera sobre un único mercado, también se agrega unicidad sobre el ticker de los instrumentos.
+**Supuesto:** un usuario tiene una sola cuenta y una cuenta pertenece a un solo usuario. La cuenta se modela como una entidad propia, que agrupa el efectivo, las reservas y las posiciones, y el número de cuenta pasa del usuario a la cuenta. Las órdenes siguen referenciando al usuario: con la relación 1 a 1, la cuenta se obtiene a partir de él. Se agrega unicidad sobre el número de cuenta y sobre el email (sin distinguir mayúsculas). Como el sistema opera sobre un único mercado, también se agrega unicidad sobre el ticker de los instrumentos.
 
-**Fundamento:** en un broker real, quien tiene los activos es la cuenta comitente, que puede tener varios titulares, y un usuario puede tener varias cuentas. Modelarlo requiere cambiar la referencia de las órdenes, lo que excede el alcance. El ticker tampoco es un identificador global en el mercado real (el mismo ticker existe en distintos mercados y plazos); en un escenario multi-mercado el identificador sería el ISIN o el par ticker-mercado.
+**Fundamento:** en un broker, quien tiene los activos es la cuenta comitente, no la persona, así que modelarla como entidad acerca el sistema al dominio real. Mantener la referencia de las órdenes al usuario evita cambiar la tabla central de la seed mientras la relación sea 1 a 1. Si un usuario pudiera tener varias cuentas, o una cuenta varios titulares, las órdenes pasarían a referenciar la cuenta. El ticker tampoco es un identificador global en el mercado real (el mismo ticker existe en distintos mercados y plazos); en un escenario multi-mercado el identificador sería el ISIN o el par ticker-mercado.
 
-**Afecta a:** el modelo de datos (ver ADRs). No cambia el comportamiento descripto en las specs.
+**Afecta a:** el modelo de datos ([ADR-004](decisions/ADR-004-schema-and-migrations.md) y [ADR-005](decisions/ADR-005-materialized-accounts.md)). No cambia el comportamiento descripto en las specs.
 
 ## S5 — Instrumentos sin cotización
 
@@ -146,7 +146,7 @@ Como datos complementarios se exponen el **resultado realizado** (`(precio de ve
 
 **Decisión:** las transferencias (`CASH_IN` y `CASH_OUT`) se modelan como órdenes y se tienen en cuenta en todos los cálculos, pero no se pueden originar desde la API: el enunciado no las pide. Si se implementaran, un `CASH_OUT` debería validarse contra el disponible, igual que una compra.
 
-**Limitación conocida:** la cantidad de una orden es un número entero, así que no se pueden registrar transferencias con centavos.
+**Modelo de datos:** el monto de una transferencia se registra en la cantidad de la orden, que admite dos decimales. En compras y ventas, la cantidad sigue siendo un número entero de acciones ([ADR-004](decisions/ADR-004-schema-and-migrations.md)).
 
 **Afecta a:** `account-balance`, `order-placement`.
 

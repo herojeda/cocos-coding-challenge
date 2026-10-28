@@ -31,8 +31,8 @@ Operatoria del usuario sobre el mercado.
 
 | Capacidad | Carpeta | Qué cubre | Fuentes | Ola | Spec |
 |---|---|---|---|---|---|
-| Envío de órdenes | `order-placement` | Validación del pedido, cantidad por monto, ejecución MARKET, alta LIMIT, rechazos con motivo, registro, concurrencia | Enunciado, S1, S3, S5–S9, S11–S13 | 3 | [En spec](./order-placement/spec.md) |
-| Cancelación de órdenes | `order-cancellation` | Cancelación de órdenes `NEW`, liberación de reservas, pertenencia, concurrencia | Enunciado, S1, S11 | 3 | [En spec](./order-cancellation/spec.md) |
+| Envío de órdenes | `order-placement` | Validación del pedido, cantidad por monto, ejecución MARKET, alta LIMIT, rechazos con motivo, registro, concurrencia, cuenta ocupada | Enunciado, S1, S3, S5–S9, S11–S13 | 3 | [En spec](./order-placement/spec.md) |
+| Cancelación de órdenes | `order-cancellation` | Cancelación de órdenes `NEW`, liberación de reservas, pertenencia, concurrencia, cuenta ocupada | Enunciado, S1, S11 | 3 | [En spec](./order-cancellation/spec.md) |
 
 ## Olas
 

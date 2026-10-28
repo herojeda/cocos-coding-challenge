@@ -8,7 +8,7 @@ title: Envío de órdenes
 
 Permite a un usuario enviar al mercado órdenes de compra o venta de acciones, de tipo MARKET o LIMIT, indicando la cantidad de acciones o un monto en pesos. Cubre la validación del pedido, el cálculo de la cantidad por monto, la ejecución inmediata de las órdenes MARKET, el alta en `NEW` de las órdenes LIMIT, el rechazo con su motivo y el registro de cada orden en el libro.
 
-Fuentes: [enunciado del challenge](https://github.com/cocos-capital/cocos-challenge/blob/main/backend-challenge.md), [database.sql](https://github.com/cocos-capital/cocos-challenge/blob/main/database.sql), [supuestos S1, S3, S5, S6, S7, S8, S9, S11, S12 y S13](../../assumptions.md).
+Fuentes: [enunciado del challenge](https://github.com/cocos-capital/cocos-challenge/blob/main/backend-challenge.md), [database.sql](https://github.com/cocos-capital/cocos-challenge/blob/main/database.sql), [supuestos S1, S3, S5, S6, S7, S8, S9, S11, S12 y S13](../../assumptions.md), [ADR-006](../../decisions/ADR-006-concurrency.md).
 
 Fuera de alcance: cálculo del disponible y de las reservas (`account-balance`); cancelación de órdenes pendientes (`order-cancellation`); ejecución de órdenes LIMIT pendientes, porque no se simula el mercado; transferencias `CASH_IN` y `CASH_OUT`, que se registran como órdenes pero no se envían desde esta capacidad.
 
@@ -305,3 +305,18 @@ El sistema NO DEBE aceptar órdenes simultáneas de un mismo usuario que, en con
 - **THEN** una orden se registra `FILLED` y la otra `REJECTED`
 - **AND** la orden rechazada tiene el motivo `INSUFFICIENT_HOLDINGS`
 - **AND** su tenencia de PAMP NO DEBE quedar negativa
+
+### Requirement: Cuenta ocupada
+
+Si otra operación sobre la misma cuenta impide procesar el pedido dentro del tiempo máximo de espera, el pedido DEBE responderse con un error de conflicto que indique que la cuenta está ocupada y que se puede reintentar. En ese caso NO DEBE registrarse ninguna orden ni modificarse el saldo.
+
+#### Scenario: ORD-32 · La cuenta queda ocupada más allá del tiempo máximo
+
+- **GIVEN** un usuario con 100.000 ARS disponibles
+- **AND** otra operación sobre su cuenta que se demora más que el tiempo máximo de espera
+- **WHEN** envía una orden BUY MARKET de 10 GGAL
+- **THEN** el pedido se responde con un error de conflicto con el código `ACCOUNT_BUSY`
+- **AND** no se registra ninguna orden
+- **AND** sus pesos disponibles siguen siendo 100.000 ARS
+
+El tiempo máximo de espera es configurable, con 2 segundos por defecto. Mecanismo según [ADR-006](../../decisions/ADR-006-concurrency.md).
