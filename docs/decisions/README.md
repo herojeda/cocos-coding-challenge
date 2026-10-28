@@ -37,3 +37,4 @@ Solo los ADRs en estado **Aceptado** son vinculantes para la implementación. Un
 | [ADR-005](ADR-005-materialized-accounts.md) | Cuentas y posiciones materializadas como proyección del libro | Aceptado |
 | [ADR-006](ADR-006-concurrency.md) | Concurrencia con lock pesimista sobre la cuenta | Aceptado |
 | [ADR-007](ADR-007-error-handling.md) | Errores con Problem Details y catálogo de códigos | Aceptado |
+| [ADR-008](ADR-008-idempotency.md) | Idempotencia en el envío de órdenes con `Idempotency-Key` | Aceptado |

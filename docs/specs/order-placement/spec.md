@@ -6,9 +6,9 @@ title: Envío de órdenes
 
 ## Purpose
 
-Permite a un usuario enviar al mercado órdenes de compra o venta de acciones, de tipo MARKET o LIMIT, indicando la cantidad de acciones o un monto en pesos. Cubre la validación del pedido, el cálculo de la cantidad por monto, la ejecución inmediata de las órdenes MARKET, el alta en `NEW` de las órdenes LIMIT, el rechazo con su motivo y el registro de cada orden en el libro.
+Permite a un usuario enviar al mercado órdenes de compra o venta de acciones, de tipo MARKET o LIMIT, indicando la cantidad de acciones o un monto en pesos. Cubre la validación del pedido, el cálculo de la cantidad por monto, la ejecución inmediata de las órdenes MARKET, el alta en `NEW` de las órdenes LIMIT, el rechazo con su motivo, la idempotencia de los reintentos y el registro de cada orden en el libro.
 
-Fuentes: [enunciado del challenge](https://github.com/cocos-capital/cocos-challenge/blob/main/backend-challenge.md), [database.sql](https://github.com/cocos-capital/cocos-challenge/blob/main/database.sql), [supuestos S1, S3, S5, S6, S7, S8, S9, S11, S12 y S13](../../assumptions.md), [ADR-006](../../decisions/ADR-006-concurrency.md).
+Fuentes: [enunciado del challenge](https://github.com/cocos-capital/cocos-challenge/blob/main/backend-challenge.md), [database.sql](https://github.com/cocos-capital/cocos-challenge/blob/main/database.sql), [supuestos S1, S3, S5, S6, S7, S8, S9, S11, S12 y S13](../../assumptions.md), [ADR-006](../../decisions/ADR-006-concurrency.md), [ADR-008](../../decisions/ADR-008-idempotency.md).
 
 Fuera de alcance: cálculo del disponible y de las reservas (`account-balance`); cancelación de órdenes pendientes (`order-cancellation`); ejecución de órdenes LIMIT pendientes, porque no se simula el mercado; transferencias `CASH_IN` y `CASH_OUT`, que se registran como órdenes pero no se envían desde esta capacidad.
 
@@ -284,6 +284,78 @@ Toda orden aceptada o rechazada DEBE quedar registrada con el usuario, el instru
 - **WHEN** envía una orden BUY LIMIT de 10 GGAL a 850
 - **THEN** la respuesta devuelve la orden con su identificador, estado `NEW`, cantidad 10, precio 850 y fecha y hora de envío
 - **AND** la orden se puede encontrar en el libro de órdenes del usuario
+
+### Requirement: Clave de idempotencia
+
+Todo pedido de orden DEBE incluir una clave de idempotencia generada por el cliente, en el header `Idempotency-Key`, para que un reintento no registre una orden duplicada. La clave DEBE tener entre 1 y 64 caracteres ASCII visibles; se recomienda un UUID. Un pedido sin clave, o con una clave inválida, DEBE responderse con un error de validación sin registrar ninguna orden.
+
+La clave es única por usuario y no vence. Si llega un pedido con una clave que el usuario ya usó en una orden registrada:
+
+- Si el pedido es igual al original, el sistema NO DEBE procesarlo de nuevo: DEBE devolver la orden registrada, en su estado actual, con el status `200 OK` y el header `Idempotent-Replayed: true`. El status distingue el reintento del registro original, que responde `201 Created`: en el reintento no se creó ninguna orden.
+- Si el pedido es distinto del original, DEBE responderse con un error con el código `IDEMPOTENCY_KEY_REUSED`, sin registrar ninguna orden.
+
+Un pedido que terminó en un error (validación, recurso inexistente o cuenta ocupada) no registra la orden, así que su clave queda libre y un reintento se procesa normalmente.
+
+#### Scenario: ORD-33 · Pedido sin clave de idempotencia
+
+- **GIVEN** un usuario con 100.000 ARS disponibles
+- **WHEN** envía una orden BUY MARKET de 10 GGAL sin el header `Idempotency-Key`
+- **THEN** el pedido se responde con un error de validación
+- **AND** no se registra ninguna orden
+
+#### Scenario: ORD-34 · Reintento de una orden ejecutada
+
+- **GIVEN** un usuario con 100.000 ARS disponibles
+- **AND** el último precio de GGAL es 885,80
+- **AND** una orden BUY MARKET de 10 GGAL enviada con la clave `k-1`, que quedó `FILLED`
+- **WHEN** reenvía el mismo pedido con la clave `k-1`
+- **THEN** la respuesta devuelve la misma orden, con el mismo identificador, el status `200 OK` y el header `Idempotent-Replayed: true`
+- **AND** no se registra una orden nueva
+- **AND** sus pesos disponibles siguen siendo 91.142 ARS
+
+#### Scenario: ORD-35 · Reintento de una orden rechazada
+
+- **GIVEN** un usuario cuya orden BUY MARKET de 200 GGAL con la clave `k-2` quedó `REJECTED` con el motivo `INSUFFICIENT_CASH`
+- **AND** que después recibió pesos suficientes para cubrirla
+- **WHEN** reenvía el mismo pedido con la clave `k-2`
+- **THEN** la respuesta devuelve la orden rechazada, con el motivo `INSUFFICIENT_CASH`
+- **AND** el sistema NO DEBE procesarla de nuevo
+
+#### Scenario: ORD-36 · Clave reutilizada con otro pedido
+
+- **GIVEN** un usuario con una orden BUY MARKET de 10 GGAL registrada con la clave `k-3`
+- **WHEN** envía una orden BUY MARKET de 20 GGAL con la clave `k-3`
+- **THEN** el pedido se responde con un error con el código `IDEMPOTENCY_KEY_REUSED`
+- **AND** no se registra ninguna orden
+
+#### Scenario: ORD-37 · La misma clave en usuarios distintos
+
+- **GIVEN** el usuario 1 con una orden registrada con la clave `k-4`
+- **AND** el usuario 2 con 100.000 ARS disponibles
+- **WHEN** el usuario 2 envía una orden BUY LIMIT de 10 GGAL a 850 con la clave `k-4`
+- **THEN** la orden del usuario 2 se procesa y se registra normalmente
+
+#### Scenario: ORD-38 · Dos pedidos simultáneos con la misma clave
+
+- **GIVEN** un usuario con 100.000 ARS disponibles
+- **WHEN** envía al mismo tiempo dos pedidos iguales de BUY MARKET de 10 GGAL con la clave `k-5`
+- **THEN** se registra una sola orden
+- **AND** las dos respuestas devuelven esa misma orden: una con el status `201 Created` y la otra con el status `200 OK` y el header `Idempotent-Replayed: true`
+
+#### Scenario: ORD-39 · Reintento después de un error de validación
+
+- **GIVEN** un usuario cuyo pedido BUY LIMIT de 10 GGAL sin precio, con la clave `k-6`, se respondió con un error de validación
+- **WHEN** envía una orden BUY LIMIT de 10 GGAL a 850 con la clave `k-6`
+- **THEN** la orden se procesa y se registra normalmente
+
+#### Scenario: ORD-40 · El reintento muestra el estado actual de la orden
+
+- **GIVEN** un usuario con una orden BUY LIMIT de 10 GGAL a 850 registrada con la clave `k-7`, que después canceló
+- **WHEN** reenvía el mismo pedido con la clave `k-7`
+- **THEN** la respuesta devuelve la orden en estado `CANCELLED`
+- **AND** no se registra una orden nueva
+
+Dos pedidos son iguales si coinciden el instrumento, el lado, el tipo, la cantidad o el monto, y el precio. Mecanismo según [ADR-008](../../decisions/ADR-008-idempotency.md).
 
 ### Requirement: Órdenes simultáneas del mismo usuario
 

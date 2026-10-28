@@ -42,6 +42,7 @@ Las respuestas de error usan `application/problem+json`, con soporte nativo de S
 | `INSTRUMENT_NOT_FOUND` | 404 | El instrumento no existe |
 | `ORDER_NOT_FOUND` | 404 | La orden no existe o pertenece a otro usuario ([S11](../assumptions.md)) |
 | `ORDER_NOT_CANCELLABLE` | 409 | La orden no está en estado `NEW` |
+| `IDEMPOTENCY_KEY_REUSED` | 422 | La clave de idempotencia ya se usó en una orden con un pedido distinto ([ADR-008](ADR-008-idempotency.md)) |
 | `ACCOUNT_BUSY` | 409 | Venció el tiempo máximo de espera del lock de la cuenta ([ADR-006](ADR-006-concurrency.md)); se puede reintentar |
 | `INTERNAL_ERROR` | 500 | Cualquier error no previsto |
 
