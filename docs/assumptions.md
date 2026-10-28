@@ -127,7 +127,7 @@ Como datos complementarios se exponen el **resultado realizado** (`(precio de ve
 
 **Estado:** decisión de diseño.
 
-**Decisión:** la búsqueda encuentra instrumentos cuyo ticker o nombre contengan el texto buscado, sin distinguir mayúsculas ni tildes. Los pesos (instrumento de tipo `MONEDA`) no aparecen en los resultados, porque no son un activo sobre el que se pueda operar. Los resultados se ordenan por relevancia: primero el ticker que coincide exactamente, después los tickers que empiezan con el texto y después el resto, cada grupo por ticker en orden alfabético.
+**Decisión:** la búsqueda encuentra instrumentos cuyo ticker o nombre contengan el texto buscado, sin distinguir mayúsculas ni tildes. Los pesos (instrumento de tipo `CURRENCY`) no aparecen en los resultados, porque no son un activo sobre el que se pueda operar. Los resultados se ordenan por relevancia: primero el ticker que coincide exactamente, después los tickers que empiezan con el texto y después el resto, cada grupo por ticker en orden alfabético.
 
 **Afecta a:** `asset-search`.
 

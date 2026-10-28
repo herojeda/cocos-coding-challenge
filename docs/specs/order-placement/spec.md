@@ -56,7 +56,7 @@ Un pedido de orden DEBE informar el usuario, el instrumento, el lado (`BUY` o `S
 #### Scenario: ORD-06 · Orden sobre los pesos
 
 - **GIVEN** un usuario con 100.000 ARS disponibles
-- **WHEN** envía una orden BUY MARKET de 10 unidades del instrumento ARS, de tipo `MONEDA`
+- **WHEN** envía una orden BUY MARKET de 10 unidades del instrumento ARS, de tipo `CURRENCY`
 - **THEN** el pedido se responde con un error de validación
 - **AND** no se registra ninguna orden
 

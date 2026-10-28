@@ -44,11 +44,11 @@ El sistema DEBE devolver los instrumentos cuyo ticker o nombre contengan el text
 
 ### Requirement: Los pesos no son un activo buscable
 
-La búsqueda NO DEBE devolver instrumentos de tipo `MONEDA`, porque no son activos sobre los que se pueda operar.
+La búsqueda NO DEBE devolver instrumentos de tipo `CURRENCY`, porque no son activos sobre los que se pueda operar.
 
 #### Scenario: AS-05 · Búsqueda de los pesos
 
-- **GIVEN** el catálogo de la seed, que tiene el instrumento ARS (PESOS) de tipo `MONEDA`
+- **GIVEN** el catálogo de la seed, que tiene el instrumento ARS (PESOS) de tipo `CURRENCY`
 - **WHEN** un usuario busca "pesos"
 - **THEN** el resultado está vacío
 
@@ -60,7 +60,7 @@ Cada resultado DEBE informar el identificador, el ticker, el nombre y el tipo de
 
 - **GIVEN** el catálogo de instrumentos de la seed
 - **WHEN** un usuario busca "YPFD"
-- **THEN** el resultado tiene el instrumento con ticker YPFD, nombre "Y.P.F. S.A." y tipo `ACCIONES`
+- **THEN** el resultado tiene el instrumento con ticker YPFD, nombre "Y.P.F. S.A." y tipo `STOCK`
 - **AND** informa su identificador
 
 ### Requirement: Orden de los resultados

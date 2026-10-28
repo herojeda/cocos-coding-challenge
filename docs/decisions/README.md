@@ -29,3 +29,7 @@ Solo los ADRs en estado **Aceptado** son vinculantes para la implementación. Un
 ## Índice
 
 Todavía no hay ADRs. Se crean en la sesión de arquitectura.
+
+Decisiones ya tomadas que tienen que registrarse como ADR:
+
+- **Convención de valores de enumerados:** todo valor de enumerado en inglés y en mayúsculas, con la normalización de `instruments.type` de la seed (`ACCIONES` → `STOCK`, `MONEDA` → `CURRENCY`) mediante una migración (ver la regla en [`AGENTS.md`](../../AGENTS.md)).
