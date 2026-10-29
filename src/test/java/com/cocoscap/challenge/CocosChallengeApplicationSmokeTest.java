@@ -26,7 +26,7 @@ class CocosChallengeApplicationSmokeTest {
         assertThat(count("users")).isEqualTo(4);
         assertThat(count("instruments")).isEqualTo(66);
         assertThat(count("orders")).isEqualTo(11);
-        assertThat(count("marketdata")).isEqualTo(126);
+        assertThat(count("market_data")).isEqualTo(126);
     }
 
     private int count(String table) {
