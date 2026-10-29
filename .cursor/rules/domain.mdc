@@ -1,0 +1,32 @@
+---
+description: Convenciones del paquete domain (reglas de negocio puras, sin frameworks)
+globs: src/main/java/com/cocoscap/challenge/domain/**,src/test/java/com/cocoscap/challenge/domain/**
+alwaysApply: false
+---
+
+# Dominio
+
+Referencias: [ADR-003](../../docs/decisions/ADR-003-hexagonal-architecture.md), [ADR-005](../../docs/decisions/ADR-005-materialized-accounts.md).
+
+## Dependencias
+
+- Solo el JDK. Nada de `org.springframework`, `java.sql`, `javax.sql`, Jackson ni Jakarta Validation. El test de ArchUnit falla si aparece alguno.
+- El dominio no conoce HTTP: lanza excepciones propias (`OrderNotCancellableException`, `AccountNotFoundException`), nunca status codes.
+
+## Modelado
+
+- Objetos de valor como `record`, con las validaciones en el constructor compacto.
+- Las invariantes viven en la entidad, no en servicios:
+  - `Order` se crea con métodos de fábrica que solo permiten estados iniciales válidos (`FILLED`, `NEW` o `REJECTED` con su motivo). `cancel()` falla si el estado no es `NEW`.
+  - `Account` y `Position` aplican las transiciones de la tabla de [ADR-005](../../docs/decisions/ADR-005-materialized-accounts.md) y son la única implementación del disponible.
+- `OrderPlacementPolicy` es una función pura: recibe el pedido, la cuenta, la posición y la cotización (que puede faltar) y devuelve una decisión. No lee ni escribe nada.
+- El método de costo vive detrás de `CostBasisCalculator`. Ningún otro código calcula el costo promedio.
+- La función de reconstrucción de la proyección desde el libro usa exactamente las mismas transiciones que la actualización incremental. Nunca dupliques esa lógica.
+
+## Dinero y cantidades
+
+- Montos y precios: `BigDecimal`. Nunca `double` ni `float`, ni `new BigDecimal(double)`: usá `BigDecimal.valueOf` o el constructor de `String`.
+- Compará con `compareTo`, nunca con `equals` (`equals` distingue `850.0` de `850.00`).
+- Toda división lleva escala y `RoundingMode` explícitos. La cantidad calculada por monto se trunca (`RoundingMode.DOWN`). Si una escala o un redondeo no está definido en las specs o los ADRs, preguntá antes de elegir uno.
+- Cantidades de acciones: `long`. Montos de transferencias: `BigDecimal`.
+- Identificadores: `long`.

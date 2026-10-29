@@ -1,0 +1,27 @@
+---
+description: Convenciones de los casos de uso y puertos del paquete application
+globs: src/main/java/com/cocoscap/challenge/application/**,src/test/java/com/cocoscap/challenge/application/**
+alwaysApply: false
+---
+
+# Casos de uso
+
+Referencias: [ADR-003](../../docs/decisions/ADR-003-hexagonal-architecture.md), [ADR-005](../../docs/decisions/ADR-005-materialized-accounts.md), [ADR-006](../../docs/decisions/ADR-006-concurrency.md), [ADR-008](../../docs/decisions/ADR-008-idempotency.md).
+
+## Dependencias
+
+- Solo `domain` y los puertos definidos en `application`. Los puertos son interfaces que viven acá; los adaptadores los implementan.
+- La única anotación de Spring permitida es `org.springframework.transaction.annotation.Transactional`. Nada de `@Service`, `@Component` ni `@Autowired`: los casos de uso se registran como beans en `config`.
+
+## Casos de uso que escriben (envío y cancelación de órdenes)
+
+- `@Transactional` con el aislamiento por defecto (`READ COMMITTED`).
+- La primera operación es tomar el lock de la cuenta a través del puerto (`lockByUserId`). Todo lo demás se lee después del lock.
+- Si la cuenta está `PENDING`, se reconstruye ahí mismo, bajo el lock, y se marca `READY` antes de continuar.
+- En el envío, inmediatamente después del lock se busca la orden previa con la misma clave de idempotencia: replay o `IDEMPOTENCY_KEY_REUSED`.
+- Un solo lock por transacción, siempre sobre la cuenta. Nunca bloquees posiciones ni órdenes por separado.
+
+## Casos de uso que leen (portfolio, búsqueda)
+
+- `@Transactional(readOnly = true)`. El portfolio además usa `isolation = Isolation.REPEATABLE_READ`, para que la cuenta y sus posiciones salgan de la misma foto de los datos.
+- Nunca toman el lock ni escriben. Si la cuenta está `PENDING`, el portfolio calcula la proyección en memoria con la función de reconstrucción, sin guardarla.

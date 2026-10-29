@@ -1,0 +1,36 @@
+---
+description: Convenciones de tests (trazabilidad con escenarios, Testcontainers, concurrencia)
+globs: src/test/**
+alwaysApply: false
+---
+
+# Tests
+
+Referencias: [README de specs](../../docs/specs/README.md), [ADR-001](../../docs/decisions/ADR-001-stack.md), [ADR-006](../../docs/decisions/ADR-006-concurrency.md).
+
+## Trazabilidad
+
+- Todo test que verifica un escenario lleva su ID en `@DisplayName`: `@DisplayName("ORD-17 · Compra MARKET sin pesos suficientes")`. El texto después del ID es el título del escenario en la spec.
+- Un escenario puede tener más de un test, pero ninguno puede quedar sin test.
+- Los valores del test son los del escenario (montos, precios, cantidades). Si el escenario no alcanza para escribir el test sin adivinar, frená y preguntá: la spec tiene que corregirse.
+
+## Niveles
+
+- **Dominio:** tests unitarios puros, sin Spring ni base de datos. Es donde van la mayoría de los escenarios de reglas.
+- **Integración:** `@SpringBootTest` con PostgreSQL real vía Testcontainers y `@ServiceConnection`. Nunca H2 ni mocks de la base. Un único contenedor compartido por toda la suite, para que los tests no levanten uno cada vez.
+- **Arquitectura:** las reglas de ArchUnit de ADR-003 corren como parte de `./gradlew test`.
+
+## Datos
+
+- Cada test de integración arma sus propios datos (usuarios, cuentas, órdenes) y no depende del orden de ejecución ni de lo que dejó otro test.
+- Los escenarios que mencionan "el usuario 1 de la seed" usan la seed tal cual; los demás crean usuarios nuevos.
+- Usá los ids que devuelve la base; no hardcodees ids salvo los de la seed que nombra el escenario.
+
+## Aserciones
+
+- AssertJ. `BigDecimal` con `isEqualByComparingTo`, nunca con `isEqualTo`.
+
+## Concurrencia
+
+- Los escenarios simultáneos (ORD-28, ORD-29, ORD-38, CXL-09) usan hilos reales que arrancan juntos con un `CountDownLatch`, contra PostgreSQL real. No simulan la concurrencia con mocks.
+- Al final de cada test de concurrencia se verifica la conciliación: la proyección de la cuenta es igual a la reconstruida desde el libro.
