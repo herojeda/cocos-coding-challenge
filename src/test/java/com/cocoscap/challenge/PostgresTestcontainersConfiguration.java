@@ -22,7 +22,7 @@ public class PostgresTestcontainersConfiguration {
         CONTAINER.start();
     }
 
-    @Bean
+    @Bean(destroyMethod = "")
     @ServiceConnection
     PostgreSQLContainer postgresContainer() {
         return CONTAINER;
