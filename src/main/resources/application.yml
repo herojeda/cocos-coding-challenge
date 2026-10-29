@@ -1,11 +1,37 @@
 spring:
+  application:
+    name: cocos-challenge
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/cocos}
     username: ${DB_USERNAME:cocos}
     password: ${DB_PASSWORD:cocos}
+
+logging:
+  structured:
+    format:
+      console: ecs
+    json:
+      # Micrometer MDC keys → ECS field names
+      rename:
+        traceId: trace.id
+        spanId: span.id
+
 
 management:
   endpoints:
     web:
       exposure:
         include: health
+  otlp:
+    metrics:
+      export:
+        enabled: false
+  tracing:
+    export:
+      otlp:
+        enabled: false
+
+# ADR-009: SQL text may appear in spans; bind parameter values must not.
+jdbc:
+  datasource-proxy:
+    include-parameter-values: false
