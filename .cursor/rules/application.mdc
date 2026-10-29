@@ -11,6 +11,7 @@ Referencias: [ADR-003](../../docs/decisions/ADR-003-hexagonal-architecture.md), 
 ## Dependencias
 
 - Solo `domain` y los puertos definidos en `application`. Los puertos son interfaces que viven acá; los adaptadores los implementan.
+- Las métricas de negocio se informan a través del puerto `TradingMetrics` ([ADR-009](../../docs/decisions/ADR-009-observability.md)); nunca con Micrometer directo.
 - La única anotación de Spring permitida es `org.springframework.transaction.annotation.Transactional`. Nada de `@Service`, `@Component` ni `@Autowired`: los casos de uso se registran como beans en `config`.
 
 ## Casos de uso que escriben (envío y cancelación de órdenes)

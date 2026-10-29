@@ -38,3 +38,4 @@ Solo los ADRs en estado **Aceptado** son vinculantes para la implementación. Un
 | [ADR-006](ADR-006-concurrency.md) | Concurrencia con lock pesimista sobre la cuenta | Aceptado |
 | [ADR-007](ADR-007-error-handling.md) | Errores con Problem Details y catálogo de códigos | Aceptado |
 | [ADR-008](ADR-008-idempotency.md) | Idempotencia en el envío de órdenes con `Idempotency-Key` | Aceptado |
+| [ADR-009](ADR-009-observability.md) | Observabilidad con Micrometer y OpenTelemetry | Aceptado |
