@@ -24,7 +24,7 @@ Si dos fuentes se contradicen, o si una tarea requiere un comportamiento que nin
 El desarrollo se hace por capacidad, en el orden de las olas del [mapa de capacidades](docs/specs/capability-map.md), con un ciclo de cuatro pasos:
 
 1. **Research.** Leé la spec de la capacidad, los ADRs aceptados, los supuestos que referencia y el código existente que vas a tocar.
-2. **Plan.** Proponé un plan antes de escribir código: archivos a crear o modificar, cómo se resuelve cada requisito y la lista de escenarios (por ID) que vas a cubrir con tests. Esperá la aprobación.
+2. **Plan.** Proponé un plan antes de escribir código: archivos a crear o modificar, cómo se resuelve cada requisito, la lista de escenarios (por ID) que vas a cubrir con tests y, si el cambio supera el tamaño máximo de un PR (ver [Git](#git)), cómo se divide en PRs. Esperá la aprobación.
 3. **Implement.** Escribí el código y los tests del plan aprobado. No agregues comportamiento que no esté en la spec.
 4. **Verify.** Corré el build y todos los tests. Confirmá que cada escenario de la capacidad tiene su test y que pasa.
 
@@ -43,3 +43,7 @@ El desarrollo se hace por capacidad, en el orden de las olas del [mapa de capaci
 - Rama por unidad de trabajo, desde `main`: `docs/<tema>`, `feat/<capacidad>`, `fix/<tema>`, `chore/<tema>`.
 - Commits con [Conventional Commits](https://www.conventionalcommits.org/): `feat(order-placement): reject buys exceeding available cash`.
 - PR contra `main`. La descripción indica la capacidad, los escenarios cubiertos por ID y cualquier supuesto o decisión nueva.
+- **Un PR tiene que poder revisarse de una vez: como máximo unas 300 líneas cambiadas** (agregadas más eliminadas), contando código de producción, tests, SQL y documentación. No cuentan los archivos generados o copiados textualmente, como el wrapper de Gradle o la seed provista por Cocos en la migración `V1`; si un PR los incluye, la descripción los señala para que el revisor sepa qué no necesita leer.
+- **Una capacidad grande se divide en varios PRs**, cada uno con un conjunto de requisitos completo: el código y los tests de los escenarios de esos requisitos. Cada PR deja el build y todos los tests en verde, y su descripción lista los escenarios que cubre y los que quedan para el siguiente.
+- **Si un cambio no se puede dividir sin dejar el sistema en un estado inconsistente**, puede superar el límite, y la descripción explica por qué.
+- **Los PRs se mergean con squash.** Si un PR se arma sobre otro que todavía no se mergeó, después del merge su rama se rebasa sobre `main` (`git rebase --onto main <rama-base>`) antes de cambiar la base del PR, para que no arrastre los commits individuales del PR anterior.
