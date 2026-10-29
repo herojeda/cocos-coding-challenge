@@ -37,7 +37,7 @@ El desarrollo se hace por capacidad, en el orden de las olas del [mapa de capaci
 - **Un supuesto que cambia se actualiza primero en `docs/assumptions.md`** y después en las specs que lo referencian.
 - **Credenciales fuera del repo.** La conexión a la base de datos se configura por variables de entorno. Nunca commitees URLs con usuario y contraseña, ni archivos `.env` con valores reales.
 - **Dinero con precisión decimal exacta.** Nunca uses tipos de punto flotante para montos ni precios.
-- **Idioma.** Código, identificadores, nombres de tests y mensajes de commit en inglés. Documentación (specs, ADRs, supuestos, README) en español.
+- **Idioma.** Código, identificadores, nombres de tests, mensajes de commit y títulos de PR en inglés. Documentación (specs, ADRs, supuestos, README) y descripciones de PR en español. El título de un PR sigue Conventional Commits y va en inglés porque, con squash merge, se convierte en el mensaje del commit en `main`.
 - **Valores de enumerados en inglés.** Todo valor de un enumerado va en inglés y en mayúsculas, igual en la base de datos, en el código y en el contrato de la API (`BUY`, `FILLED`, `MARKET`). La seed provista no cumple esta regla en `instruments.type`: esos valores se normalizan con una migración de base de datos (`ACCIONES` → `STOCK`, `MONEDA` → `CURRENCY`), sin modificar el `database.sql` original. Las specs ya usan los valores en inglés, y ningún código nuevo debe depender de los valores en español.
 
 ## Git
