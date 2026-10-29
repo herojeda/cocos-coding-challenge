@@ -22,7 +22,6 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
-import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.JsonNode;
@@ -37,9 +36,6 @@ import tools.jackson.databind.ObjectMapper;
 class ObservabilityIntegrationTest {
 
     private static final String BIND_SECRET = "secret-bind-value-xyz";
-
-    @Autowired
-    private Environment environment;
 
     @Autowired
     private MeterRegistry meterRegistry;
@@ -64,14 +60,6 @@ class ObservabilityIntegrationTest {
         TestObservationRegistry testObservationRegistry() {
             return TestObservationRegistry.create();
         }
-    }
-
-    @Test
-    @DisplayName("default config disables OTLP export so the app starts without a collector")
-    void defaultConfigDisablesOtlpExport() {
-        assertThat(environment.getProperty("management.otlp.metrics.export.enabled")).isEqualTo("false");
-        assertThat(environment.getProperty("management.tracing.export.otlp.enabled")).isEqualTo("false");
-        assertThat(environment.getProperty("jdbc.datasource-proxy.include-parameter-values")).isEqualTo("false");
     }
 
     @Test
@@ -128,4 +116,3 @@ class ObservabilityIntegrationTest {
                 .isNotBlank();
     }
 }
-

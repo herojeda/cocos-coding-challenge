@@ -38,7 +38,9 @@ La conexión se configura con `DB_URL`, `DB_USERNAME` y `DB_PASSWORD`. Los valor
 
 ## Observabilidad
 
-La app instrumenta métricas y trazas con Micrometer / OpenTelemetry (ADR-009). **Por defecto no exporta nada** por OTLP: arranca sin colector y no llena el log con errores de conexión. Los logs de consola van en JSON (ECS) e incluyen trace id y span id cuando hay una traza activa.
+La app instrumenta métricas y trazas con Micrometer / OpenTelemetry (ADR-009). **Por defecto no exporta nada** por OTLP: arranca sin colector y no llena el log con errores de conexión.
+
+Los logs van a **consola** en JSON (ECS) e incluyen `trace.id` / `span.id` cuando hay una traza activa. ADR-009 no exporta logs por OTLP a Loki: la correlación log↔traza se hace copiando el `trace.id` del log de consola y buscándolo en Tempo (Grafana).
 
 Para ver métricas y trazas en local:
 
@@ -51,7 +53,10 @@ Abrí Grafana en [http://localhost:3000](http://localhost:3000). Ahí vas a pode
 
 - Métricas HTTP (`http.server.requests`), del pool HikariCP y de la JVM
 - Trazas de cada pedido, con spans de JDBC (texto SQL, **sin** valores de parámetros)
-- Correlación de logs con el trace id de la traza
+
+Ejemplo de traza HTTP + JDBC en Tempo:
+
+![Traza HTTP con span JDBC en Grafana Tempo](docs/assets/grafana-tempo-http-jdbc-trace.png)
 
 `docker compose up -d` (sin perfil) sigue levantando solo PostgreSQL.
 
