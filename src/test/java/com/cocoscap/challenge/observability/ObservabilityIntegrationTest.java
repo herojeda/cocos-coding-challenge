@@ -115,4 +115,25 @@ class ObservabilityIntegrationTest {
                 .as("ECS log should carry span.id")
                 .isNotBlank();
     }
+
+    @Test
+    @DisplayName("error advice attaches code and instance to the HTTP observation, not metric tags")
+    void errorAdviceAttachesCodeAndInstanceToObservationNotMetrics() throws Exception {
+        observationRegistry.clear();
+
+        mockMvc.perform(get("/no-existe")).andReturn();
+
+        TestObservationRegistryAssert.assertThat(observationRegistry)
+                .hasObservationWithNameEqualTo("http.server.requests")
+                .that()
+                .hasHighCardinalityKeyValue("error.code", "UNSUPPORTED_REQUEST")
+                .hasHighCardinalityKeyValueWithKey("error.instance");
+
+        assertThat(meterRegistry.find("http.server.requests").meters())
+                .isNotEmpty()
+                .allSatisfy(meter -> assertThat(meter.getId().getTags())
+                        .noneMatch(tag -> tag.getKey().equals("error.code")
+                                || tag.getKey().equals("error.instance")
+                                || tag.getKey().equals("instance")));
+    }
 }

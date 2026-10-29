@@ -1,5 +1,7 @@
 package com.cocoscap.challenge.adapter.in.web.error;
 
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
@@ -42,9 +44,17 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static final String CODE_PROPERTY = "code";
     private static final String ERRORS_PROPERTY = "errors";
+    private static final String ERROR_CODE_ATTRIBUTE = "error.code";
+    private static final String ERROR_INSTANCE_ATTRIBUTE = "error.instance";
     private static final String REASON_REQUIRED = "is required";
     private static final String REASON_INVALID_TYPE = "has an invalid type";
     private static final String REASON_INVALID = "is invalid";
+
+    private final ObservationRegistry observationRegistry;
+
+    public ApiExceptionHandler(ObservationRegistry observationRegistry) {
+        this.observationRegistry = observationRegistry;
+    }
 
     @Override
     protected ResponseEntity<Object> handleHttpMessageNotReadable(
@@ -169,6 +179,8 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             problem.setProperty(ERRORS_PROPERTY, errors);
         }
 
+        attachErrorAttributesToCurrentObservation(code, instance);
+
         if (resolvedStatus.is5xxServerError()) {
             log.error("Request failed code={} instance={}", code.name(), instance, ex);
         } else {
@@ -178,6 +190,18 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(resolvedStatus)
                 .contentType(MediaType.APPLICATION_PROBLEM_JSON)
                 .body(problem);
+    }
+
+    /**
+     * High-cardinality identifiers for Tempo lookup (ADR-009). Never published as metric tags.
+     */
+    private void attachErrorAttributesToCurrentObservation(ProblemCode code, String instance) {
+        Observation observation = observationRegistry.getCurrentObservation();
+        if (observation == null) {
+            return;
+        }
+        observation.highCardinalityKeyValue(ERROR_CODE_ATTRIBUTE, code.name());
+        observation.highCardinalityKeyValue(ERROR_INSTANCE_ATTRIBUTE, instance);
     }
 
     private static String bindingFieldName(ServletRequestBindingException ex) {

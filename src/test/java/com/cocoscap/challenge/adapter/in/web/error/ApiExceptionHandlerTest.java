@@ -3,6 +3,7 @@ package com.cocoscap.challenge.adapter.in.web.error;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jayway.jsonpath.JsonPath;
+import io.micrometer.observation.ObservationRegistry;
 import java.nio.charset.StandardCharsets;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -11,7 +12,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -19,11 +22,20 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.test.web.servlet.assertj.MvcTestResult;
 
 @WebMvcTest(controllers = ErrorHandlingTestController.class)
-@Import({ApiExceptionHandler.class, NosniffHeaderFilter.class})
+@Import({ApiExceptionHandler.class, NosniffHeaderFilter.class, ApiExceptionHandlerTest.ObservationTestConfig.class})
 class ApiExceptionHandlerTest {
 
     private static final String XSS_PAYLOAD = "<script>alert(1)</script>";
     private static final String SECRET = "secret-internal-detail";
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class ObservationTestConfig {
+
+        @Bean
+        ObservationRegistry observationRegistry() {
+            return ObservationRegistry.create();
+        }
+    }
 
     @Autowired
     private MockMvcTester mvc;
