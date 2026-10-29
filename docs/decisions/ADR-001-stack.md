@@ -16,6 +16,7 @@ El enunciado del challenge pide Node.js, pero Cocos pidió explícitamente resol
 | Base de datos | PostgreSQL, levantado localmente con docker-compose |
 | Migraciones | Flyway (ver [ADR-004](ADR-004-schema-and-migrations.md)) |
 | Tests | JUnit con AssertJ, y Testcontainers con PostgreSQL real para los tests de integración |
+| Observabilidad | Micrometer con exportación OTLP mediante `spring-boot-starter-opentelemetry` (ver [ADR-009](ADR-009-observability.md)) |
 | Documentación de la API | springdoc-openapi (Swagger UI) y un archivo `.http` con ejemplos de invocación |
 
 No se usan Lombok ni MapStruct: los records de Java cubren los objetos de valor y los DTOs, y el mapeo es explícito.

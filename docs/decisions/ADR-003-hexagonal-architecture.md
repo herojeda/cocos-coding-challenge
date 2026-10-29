@@ -18,6 +18,7 @@ com.cocoscap.challenge
                           SearchAssets) y los puertos que necesitan
   adapter/in/web/         controllers, DTOs del contrato, Problem Details
   adapter/out/persistence/ implementación de los puertos con JdbcClient
+  adapter/out/observability/ implementación del puerto de métricas con Micrometer (ADR-009)
   config/                 wiring de Spring
 ```
 

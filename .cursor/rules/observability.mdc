@@ -1,0 +1,16 @@
+---
+description: Convenciones de observabilidad (métricas de negocio, tags, logs y trazas)
+globs: src/main/java/com/cocoscap/challenge/adapter/out/observability/**,src/main/resources/application*.yml,docker-compose.yml
+alwaysApply: false
+---
+
+# Observabilidad
+
+Referencia: [ADR-009](../../docs/decisions/ADR-009-observability.md).
+
+- Instrumentación con la Observation API de Micrometer y exportación por OTLP. Nada de clientes o registros de un proveedor específico (Datadog, Prometheus directo, etc.).
+- Las métricas de negocio se emiten solo a través del puerto `TradingMetrics`. Los casos de uso nunca importan Micrometer; la implementación vive en `adapter/out/observability`.
+- Los nombres y tags de las métricas son los de la tabla de ADR-009. Una métrica nueva se agrega primero al ADR.
+- **Nunca uses como tag el usuario, la cuenta, el instrumento, la orden ni la clave de idempotencia.** Los tags son de baja cardinalidad y conocida (enumerados).
+- Logs en JSON por consola. Nunca registres la clave de idempotencia ni el body completo de un pedido; los errores registran el `instance` de Problem Details.
+- La exportación OTLP está apagada por defecto y se habilita solo con el perfil `observability`.
