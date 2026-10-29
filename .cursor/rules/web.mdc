@@ -1,0 +1,30 @@
+---
+description: Convenciones del adaptador web (controllers, DTOs, errores con Problem Details)
+globs: src/main/java/com/cocoscap/challenge/adapter/in/web/**,src/test/java/com/cocoscap/challenge/adapter/in/web/**
+alwaysApply: false
+---
+
+# Adaptador web
+
+Referencias: [ADR-007](../../docs/decisions/ADR-007-error-handling.md), [ADR-008](../../docs/decisions/ADR-008-idempotency.md), supuesto [S8](../../docs/assumptions.md).
+
+## Controllers y contrato
+
+- Los controllers solo traducen: validan el formato del pedido, llaman al caso de uso y arman la respuesta. Ninguna regla de negocio.
+- Request y response como `record` propios del adaptador. Nunca expongas objetos del dominio en el contrato.
+- Validación de formato con Bean Validation en los DTOs. Las reglas de negocio (disponible, estados) las decide el dominio.
+- El usuario se identifica explícitamente en cada pedido (no hay autenticación, supuesto S11).
+
+## Respuestas de órdenes
+
+- Una orden registrada responde `201 Created`, **también si quedó `REJECTED`**: un rechazo es un resultado, no un error.
+- Un replay de idempotencia responde `200 OK` con el header `Idempotent-Replayed: true`.
+- `POST /orders` exige el header `Idempotency-Key`.
+
+## Errores
+
+- Todo error es `application/problem+json` (`ProblemDetail`), generado por el `@RestControllerAdvice` que extiende `ResponseEntityExceptionHandler`.
+- Cada respuesta lleva `type` (`urn:cocos-challenge:problem:<problema>`), `status` numérico, `code` del catálogo de ADR-007 e `instance` como `urn:uuid:<uuid>`, que también se escribe en el log.
+- **No inventes códigos.** Si un caso no encaja en el catálogo de ADR-007, frená y preguntá.
+- `detail` es siempre un texto escrito por nosotros. Nunca uses `exception.getMessage()` ni repitas un valor recibido del usuario, tampoco en los errores de validación (se informa el campo y el motivo, no el valor).
+- Los errores no previstos responden `INTERNAL_ERROR` con un texto genérico; la excepción completa va solo al log.

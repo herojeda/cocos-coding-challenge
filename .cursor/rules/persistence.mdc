@@ -1,0 +1,29 @@
+---
+description: Convenciones de los adaptadores de persistencia con JdbcClient
+globs: src/main/java/com/cocoscap/challenge/adapter/out/persistence/**,src/test/java/com/cocoscap/challenge/adapter/out/persistence/**
+alwaysApply: false
+---
+
+# Persistencia
+
+Referencias: [ADR-002](../../docs/decisions/ADR-002-data-access.md), [ADR-004](../../docs/decisions/ADR-004-schema-and-migrations.md), [ADR-006](../../docs/decisions/ADR-006-concurrency.md).
+
+## Acceso a datos
+
+- Solo `JdbcClient`. Nada de JPA, Spring Data, `JdbcTemplate` directo ni jOOQ.
+- SQL escrito en el adaptador, como text block, con parámetros con nombre (`:userId`). Nunca concatenes valores en el SQL.
+- Mapeo a `record` con `SimplePropertyRowMapper` (`.query(MiRecord.class)`); alias explícito o `RowMapper` propio solo cuando la forma no coincide.
+- Las filas de persistencia son records propios del adaptador; el adaptador las convierte a objetos del dominio. El dominio nunca recibe un `ResultSet` ni un record de persistencia.
+- Inserts con `RETURNING id` para obtener el identificador generado.
+
+## Esquema
+
+- Tablas y columnas en snake_case (`market_data`, `instrument_id`). Valores de enumerados en inglés y en mayúsculas.
+- Identificadores `BIGINT` (`long` en Java). Montos `NUMERIC` (`BigDecimal`). `orders.size` es `NUMERIC(18,2)`: el adaptador lo convierte a `long` en compras y ventas.
+
+## Queries que tienen una forma definida
+
+- **Lock de la cuenta:** `SET LOCAL lock_timeout` con el valor configurado y después `SELECT ... FROM accounts WHERE user_id = :userId FOR UPDATE`. Un vencimiento del lock llega como SQLState `55P03` (Spring lo traduce a una `PessimisticLockingFailureException`); el adaptador lo convierte en la excepción de dominio que termina en `ACCOUNT_BUSY`.
+- **Último precio:** `SELECT DISTINCT ON (instrument_id) ... ORDER BY instrument_id, date DESC`.
+- **Búsqueda:** `unaccent(lower(...)) LIKE unaccent(lower(:pattern))` sobre ticker y nombre, excluyendo `CURRENCY`, con el orden de relevancia como `ORDER BY CASE ...`. Escapá `%` y `_` del texto del usuario antes de armar el patrón.
+- **Reconstrucción:** órdenes del usuario ordenadas por `datetime, id`, usando el índice `orders(user_id, datetime, id)`.

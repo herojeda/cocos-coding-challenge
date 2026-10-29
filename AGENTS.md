@@ -17,6 +17,8 @@ En orden de prioridad:
 3. **Supuestos** en [`docs/assumptions.md`](docs/assumptions.md): las definiciones de negocio que el enunciado no resuelve.
 4. **Enunciado original** y [`database.sql`](https://github.com/cocos-capital/cocos-challenge/blob/main/database.sql).
 
+Las convenciones técnicas de cada capa (dominio, casos de uso, persistencia, web, migraciones, tests) están resumidas en [`.cursor/rules/`](.cursor/rules/), que se cargan según los archivos que se tocan. No agregan decisiones: condensan las de los ADRs para aplicarlas al escribir código. Si una rule y un ADR no coinciden, manda el ADR.
+
 Si dos fuentes se contradicen, o si una tarea requiere un comportamiento que ninguna spec describe, **frená y preguntá**. No elijas vos ni completes con una suposición razonable.
 
 ## Flujo de trabajo

@@ -1,0 +1,15 @@
+---
+description: Convenciones para editar specs, supuestos y ADRs
+globs: docs/**
+alwaysApply: false
+---
+
+# Specs, supuestos y ADRs
+
+Referencias: [README de specs](../../docs/specs/README.md), [README de ADRs](../../docs/decisions/README.md), [supuestos](../../docs/assumptions.md).
+
+- Las specs describen el comportamiento vigente: se editan en el lugar, sin historial ni "antes/ahora". Marcadores de estructura en inglés (`Requirement`, `Scenario`, `GIVEN`/`WHEN`/`THEN`/`AND`), contenido en español, palabras normativas **DEBE / NO DEBE**.
+- Un escenario nuevo toma el siguiente ID libre de su capacidad. Los IDs no se reutilizan, aunque un escenario se elimine.
+- Lo que no está definido en ninguna fuente se marca como `*(pendiente: …)*`. Nunca se completa con una suposición.
+- Un supuesto que cambia se actualiza primero en `docs/assumptions.md` y después en las specs que lo referencian.
+- Un ADR aceptado no se edita para cambiar la decisión: se escribe uno nuevo que lo reemplaza. Las decisiones técnicas se justifican con argumentos técnicos.
