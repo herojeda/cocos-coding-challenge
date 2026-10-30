@@ -47,7 +47,13 @@ class OtlpExportConfigurationTest {
     }
 
     @Nested
-    @SpringBootTest
+    @SpringBootTest(properties = {
+        // close() still publishes once; a long step avoids a mid-test export, and sampling 0
+        // exports no spans. The registry logger is off because that final publish has no collector.
+        "management.otlp.metrics.export.step=24h",
+        "management.tracing.sampling.probability=0",
+        "logging.level.io.micrometer.registry.otlp.OtlpMeterRegistry=OFF"
+    })
     @ActiveProfiles("observability")
     @Import(PostgresTestcontainersConfiguration.class)
     class ObservabilityProfile {

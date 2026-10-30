@@ -1,7 +1,8 @@
 package com.cocoscap.challenge.adapter.in.web.error;
 
+import io.micrometer.common.KeyValue;
 import io.micrometer.observation.Observation;
-import io.micrometer.observation.ObservationRegistry;
+import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
@@ -16,6 +17,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.http.server.observation.ServerRequestObservationContext;
 import org.springframework.lang.Nullable;
 import org.springframework.validation.FieldError;
 import org.springframework.validation.method.ParameterValidationResult;
@@ -27,7 +29,9 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.ServletRequestBindingException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.filter.ServerHttpObservationFilter;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
@@ -44,17 +48,18 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static final String CODE_PROPERTY = "code";
     private static final String ERRORS_PROPERTY = "errors";
-    private static final String ERROR_CODE_ATTRIBUTE = "error.code";
-    private static final String ERROR_INSTANCE_ATTRIBUTE = "error.instance";
+    private static final String PROBLEM_CODE_ATTRIBUTE = "problem.code";
+    private static final String PROBLEM_INSTANCE_ATTRIBUTE = "problem.instance";
+    /**
+     * {@link ServerHttpObservationFilter} keeps the server observation on the request and only
+     * exposes the context. {@link Observation#error(Throwable)} notifies tracing handlers;
+     * {@code Context#setError} does not, so the span would stay successful in Tempo.
+     */
+    private static final String SERVER_OBSERVATION_ATTRIBUTE =
+            ServerHttpObservationFilter.class.getName() + ".observation";
     private static final String REASON_REQUIRED = "is required";
     private static final String REASON_INVALID_TYPE = "has an invalid type";
     private static final String REASON_INVALID = "is invalid";
-
-    private final ObservationRegistry observationRegistry;
-
-    public ApiExceptionHandler(ObservationRegistry observationRegistry) {
-        this.observationRegistry = observationRegistry;
-    }
 
     @Override
     protected ResponseEntity<Object> handleHttpMessageNotReadable(
@@ -62,7 +67,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             HttpHeaders headers,
             HttpStatusCode status,
             WebRequest request) {
-        return problemResponse(ProblemCode.MALFORMED_REQUEST, ProblemCode.MALFORMED_REQUEST.status(), ex, null);
+        return problemResponse(ProblemCode.MALFORMED_REQUEST, ProblemCode.MALFORMED_REQUEST.status(), ex, null, request);
     }
 
     @Override
@@ -75,7 +80,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         for (FieldError fieldError : ex.getBindingResult().getFieldErrors()) {
             errors.add(new ValidationError(fieldError.getField(), reasonForConstraint(fieldError.getCode())));
         }
-        return problemResponse(ProblemCode.VALIDATION_ERROR, ProblemCode.VALIDATION_ERROR.status(), ex, errors);
+        return problemResponse(ProblemCode.VALIDATION_ERROR, ProblemCode.VALIDATION_ERROR.status(), ex, errors, request);
     }
 
     @Override
@@ -90,7 +95,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             String field = parameterName != null ? parameterName : "parameter";
             result.getResolvableErrors().forEach(error -> errors.add(new ValidationError(field, REASON_INVALID)));
         }
-        return problemResponse(ProblemCode.VALIDATION_ERROR, ProblemCode.VALIDATION_ERROR.status(), ex, errors);
+        return problemResponse(ProblemCode.VALIDATION_ERROR, ProblemCode.VALIDATION_ERROR.status(), ex, errors, request);
     }
 
     @Override
@@ -101,7 +106,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             WebRequest request) {
         String field = bindingFieldName(ex);
         List<ValidationError> errors = List.of(new ValidationError(field, REASON_REQUIRED));
-        return problemResponse(ProblemCode.VALIDATION_ERROR, ProblemCode.VALIDATION_ERROR.status(), ex, errors);
+        return problemResponse(ProblemCode.VALIDATION_ERROR, ProblemCode.VALIDATION_ERROR.status(), ex, errors, request);
     }
 
     @Override
@@ -111,14 +116,14 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             HttpStatusCode status,
             WebRequest request) {
         List<ValidationError> errors = List.of(new ValidationError(ex.getParameterName(), REASON_REQUIRED));
-        return problemResponse(ProblemCode.VALIDATION_ERROR, ProblemCode.VALIDATION_ERROR.status(), ex, errors);
+        return problemResponse(ProblemCode.VALIDATION_ERROR, ProblemCode.VALIDATION_ERROR.status(), ex, errors, request);
     }
 
     @Override
     protected ResponseEntity<Object> handleMissingPathVariable(
             MissingPathVariableException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
         List<ValidationError> errors = List.of(new ValidationError(ex.getVariableName(), REASON_REQUIRED));
-        return problemResponse(ProblemCode.VALIDATION_ERROR, ProblemCode.VALIDATION_ERROR.status(), ex, errors);
+        return problemResponse(ProblemCode.VALIDATION_ERROR, ProblemCode.VALIDATION_ERROR.status(), ex, errors, request);
     }
 
     @Override
@@ -126,13 +131,13 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             TypeMismatchException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
         String field = ex.getPropertyName() != null ? ex.getPropertyName() : "parameter";
         List<ValidationError> errors = List.of(new ValidationError(field, REASON_INVALID_TYPE));
-        return problemResponse(ProblemCode.VALIDATION_ERROR, ProblemCode.VALIDATION_ERROR.status(), ex, errors);
+        return problemResponse(ProblemCode.VALIDATION_ERROR, ProblemCode.VALIDATION_ERROR.status(), ex, errors, request);
     }
 
     @Override
     protected ResponseEntity<Object> handleNoResourceFoundException(
             NoResourceFoundException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
-        return problemResponse(ProblemCode.UNSUPPORTED_REQUEST, HttpStatus.NOT_FOUND, ex, null);
+        return problemResponse(ProblemCode.UNSUPPORTED_REQUEST, HttpStatus.NOT_FOUND, ex, null, request);
     }
 
     @Override
@@ -141,7 +146,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             HttpHeaders headers,
             HttpStatusCode status,
             WebRequest request) {
-        return problemResponse(ProblemCode.UNSUPPORTED_REQUEST, HttpStatus.METHOD_NOT_ALLOWED, ex, null);
+        return problemResponse(ProblemCode.UNSUPPORTED_REQUEST, HttpStatus.METHOD_NOT_ALLOWED, ex, null, request);
     }
 
     @Override
@@ -150,7 +155,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             HttpHeaders headers,
             HttpStatusCode status,
             WebRequest request) {
-        return problemResponse(ProblemCode.UNSUPPORTED_REQUEST, HttpStatus.UNSUPPORTED_MEDIA_TYPE, ex, null);
+        return problemResponse(ProblemCode.UNSUPPORTED_REQUEST, HttpStatus.UNSUPPORTED_MEDIA_TYPE, ex, null, request);
     }
 
     /**
@@ -159,14 +164,15 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Object> handleUnhandledException(Exception ex, WebRequest request) {
-        return problemResponse(ProblemCode.INTERNAL_ERROR, ProblemCode.INTERNAL_ERROR.status(), ex, null);
+        return problemResponse(ProblemCode.INTERNAL_ERROR, ProblemCode.INTERNAL_ERROR.status(), ex, null, request);
     }
 
     private ResponseEntity<Object> problemResponse(
             ProblemCode code,
             @Nullable HttpStatus status,
             Exception ex,
-            @Nullable List<ValidationError> errors) {
+            @Nullable List<ValidationError> errors,
+            WebRequest request) {
         HttpStatus resolvedStatus = status != null ? status : HttpStatus.INTERNAL_SERVER_ERROR;
         String instance = "urn:uuid:" + UUID.randomUUID();
 
@@ -179,7 +185,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             problem.setProperty(ERRORS_PROPERTY, errors);
         }
 
-        attachErrorAttributesToCurrentObservation(code, instance);
+        attachProblemToHttpObservation(request, code, instance, ex, resolvedStatus.is5xxServerError());
 
         if (resolvedStatus.is5xxServerError()) {
             log.error("Request failed code={} instance={}", code.name(), instance, ex);
@@ -194,14 +200,31 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
     /**
      * High-cardinality identifiers for Tempo lookup (ADR-009). Never published as metric tags.
+     * Missing observation context (a web slice without the server observation filter) is ignored.
      */
-    private void attachErrorAttributesToCurrentObservation(ProblemCode code, String instance) {
-        Observation observation = observationRegistry.getCurrentObservation();
-        if (observation == null) {
+    private static void attachProblemToHttpObservation(
+            WebRequest request, ProblemCode code, String instance, Exception ex, boolean serverError) {
+        if (!(request instanceof ServletWebRequest servletWebRequest)) {
             return;
         }
-        observation.highCardinalityKeyValue(ERROR_CODE_ATTRIBUTE, code.name());
-        observation.highCardinalityKeyValue(ERROR_INSTANCE_ATTRIBUTE, instance);
+        HttpServletRequest httpRequest = servletWebRequest.getRequest();
+        ServerHttpObservationFilter.findObservationContext(httpRequest).ifPresent(context -> {
+            context.addHighCardinalityKeyValue(KeyValue.of(PROBLEM_CODE_ATTRIBUTE, code.name()));
+            context.addHighCardinalityKeyValue(KeyValue.of(PROBLEM_INSTANCE_ATTRIBUTE, instance));
+            if (serverError) {
+                recordServerError(httpRequest, context, ex);
+            }
+        });
+    }
+
+    private static void recordServerError(
+            HttpServletRequest request, ServerRequestObservationContext context, Exception ex) {
+        Object current = request.getAttribute(SERVER_OBSERVATION_ATTRIBUTE);
+        if (current instanceof Observation observation && observation.getContext() == context) {
+            observation.error(ex);
+            return;
+        }
+        context.setError(ex);
     }
 
     private static String bindingFieldName(ServletRequestBindingException ex) {
