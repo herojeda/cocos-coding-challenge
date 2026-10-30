@@ -44,14 +44,14 @@ positions (
 - **La cuenta es una entidad**, relacionada 1 a 1 con el usuario ([S4](../assumptions.md)). El número de cuenta pasa de `users` a `accounts`.
 - **Las órdenes siguen referenciando `user_id`.** Con la relación 1 a 1, cambiar la tabla central de la seed no aporta nada hoy. Si un usuario pudiera tener varias cuentas, `orders` pasaría a referenciar `account_id`.
 - **El efectivo vive en la fila de la cuenta**, no como una posición del instrumento ARS. El libro sigue registrando los pesos como instrumento, como pide el enunciado, pero en la proyección la fila de la cuenta es el lugar natural para el lock y para las invariantes de pesos.
-- **El costo promedio y el resultado realizado se materializan.** El costo promedio ponderado ([S2](../assumptions.md)) se actualiza de forma incremental con la fila actual: una compra recalcula `(cantidad × promedio + q × p) / (cantidad + q)`, una venta suma `(p − promedio) × q` al resultado realizado sin cambiar el promedio, y una tenencia que llega a cero reinicia el promedio. El promedio se guarda con seis decimales para no acumular error de redondeo entre operaciones.
+- **El costo promedio y el resultado realizado se materializan.** El costo promedio ponderado ([S2](../assumptions.md)) se actualiza de forma incremental con la fila actual: una compra recalcula `(cantidad × promedio + q × p) / (cantidad + q)`, una venta suma `(p − promedio) × q` al resultado realizado sin cambiar el promedio, y una tenencia que llega a cero reinicia el promedio. Con tenencias negativas, que solo existen por la seed ([S3](../assumptions.md)), la cantidad que no estaba en tenencia no tiene costo: una venta genera resultado realizado solo sobre la cantidad positiva que había (`min(q, cantidad)` si la cantidad es positiva, cero si no), y una compra sobre una tenencia negativa primero compensa el faltante, y solo la parte que queda por encima de cero forma el promedio. El promedio se guarda con seis decimales para no acumular error de redondeo entre operaciones.
 
 ### Transiciones
 
 | Evento | Cuenta | Posición |
 |---|---|---|
-| BUY MARKET `FILLED` | `cash −= q × p` | `quantity += q`, recalcula el promedio |
-| SELL MARKET `FILLED` | `cash += q × p` | `quantity −= q`, `realized_pnl += (p − promedio) × q` |
+| BUY MARKET `FILLED` | `cash −= q × p` | `quantity += q`, recalcula el promedio sobre la parte que queda por encima de cero |
+| SELL MARKET `FILLED` | `cash += q × p` | `quantity −= q`, `realized_pnl += (p − promedio) × min(q, cantidad en tenencia)` |
 | BUY LIMIT `NEW` | `reserved_cash += q × p` | — |
 | SELL LIMIT `NEW` | — | `reserved_quantity += q` |
 | Cancelación de BUY LIMIT | `reserved_cash −= q × p` | — |

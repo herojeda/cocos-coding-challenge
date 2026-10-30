@@ -59,7 +59,7 @@ Como datos complementarios se exponen el **resultado realizado** (`(precio de ve
 
 **Estado:** pendiente de confirmación.
 
-**Supuesto:** la seed registra una venta `FILLED` de 30 BMA cuando el usuario 1 tenía 20, lo que deja la tenencia en −10. No se corrigen los datos: el libro de órdenes es la fuente de verdad y el sistema lo refleja tal cual. La posición se informa con cantidad −10 y valor de mercado negativo, que resta del valor total. El costo promedio y el rendimiento de esa posición quedan sin calcular. La validación de venta impide que el sistema genere este estado con órdenes nuevas.
+**Supuesto:** la seed registra una venta `FILLED` de 30 BMA cuando el usuario 1 tenía 20, lo que deja la tenencia en −10. No se corrigen los datos: el libro de órdenes es la fuente de verdad y el sistema lo refleja tal cual. La posición se informa con cantidad −10 y valor de mercado negativo, que resta del valor total. El costo promedio y el rendimiento de esa posición quedan sin calcular. El resultado realizado de la venta se calcula solo sobre las 20 acciones que había (−200 ARS): las 10 vendidas de más nunca formaron parte de la tenencia, así que no generan resultado. Por la misma razón, una compra posterior primero compensa el faltante, sin costo ni resultado, y solo lo que queda por encima de cero forma el costo promedio. La validación de venta impide que el sistema genere este estado con órdenes nuevas.
 
 **Fundamento:** en un sistema financiero, corregir u ocultar una inconsistencia del libro es peor que exponerla. Excluir la posición haría que el valor total no cierre con el libro de órdenes.
 
