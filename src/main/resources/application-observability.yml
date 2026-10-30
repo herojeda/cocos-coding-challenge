@@ -1,0 +1,19 @@
+# Local observability profile (ADR-009): export to grafana/otel-lgtm on localhost.
+management:
+  otlp:
+    metrics:
+      export:
+        enabled: true
+        url: http://localhost:4318/v1/metrics
+  tracing:
+    export:
+      otlp:
+        enabled: true
+    sampling:
+      probability: 1.0
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: http://localhost:4318/v1/traces
+          transport: http
