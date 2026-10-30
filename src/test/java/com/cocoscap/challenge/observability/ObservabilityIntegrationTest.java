@@ -6,9 +6,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import com.cocoscap.challenge.PostgresTestcontainersConfiguration;
 import io.micrometer.common.KeyValue;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationHandler;
 import io.micrometer.observation.tck.TestObservationRegistry;
 import io.micrometer.observation.tck.TestObservationRegistryAssert;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -55,6 +59,9 @@ class ObservabilityIntegrationTest {
     private TestObservationRegistry observationRegistry;
 
     @Autowired
+    private OnErrorNames onErrorNames;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
@@ -67,9 +74,43 @@ class ObservabilityIntegrationTest {
     static class ObservationTestConfig {
 
         @Bean
+        OnErrorNames onErrorNames() {
+            return new OnErrorNames();
+        }
+
+        @Bean
         @Primary
-        TestObservationRegistry testObservationRegistry() {
-            return TestObservationRegistry.create();
+        TestObservationRegistry testObservationRegistry(OnErrorNames onErrorNames) {
+            TestObservationRegistry registry = TestObservationRegistry.create();
+            registry.observationConfig().observationHandler(new ObservationHandler<Observation.Context>() {
+                @Override
+                public void onError(Observation.Context context) {
+                    onErrorNames.add(context.getName());
+                }
+
+                @Override
+                public boolean supportsContext(Observation.Context context) {
+                    return true;
+                }
+            });
+            return registry;
+        }
+    }
+
+    static final class OnErrorNames {
+
+        private final List<String> names = new ArrayList<>();
+
+        void add(String name) {
+            names.add(name);
+        }
+
+        void clear() {
+            names.clear();
+        }
+
+        List<String> names() {
+            return List.copyOf(names);
         }
     }
 
@@ -141,6 +182,7 @@ class ObservabilityIntegrationTest {
     @DisplayName("a 4xx leaves problem code and instance on the HTTP observation, not on metric tags")
     void clientErrorAttachesProblemAttributesWithoutMarkingTheObservationFailed() throws Exception {
         observationRegistry.clear();
+        onErrorNames.clear();
 
         MvcResult result = mockMvc.perform(get("/no-existe")).andReturn();
         String instance = objectMapper.readTree(result.getResponse().getContentAsString())
@@ -153,6 +195,7 @@ class ObservabilityIntegrationTest {
                 .doesNotHaveError()
                 .hasHighCardinalityKeyValue("problem.code", "UNSUPPORTED_REQUEST")
                 .hasHighCardinalityKeyValue("problem.instance", instance);
+        assertThat(onErrorNames.names()).doesNotContain("http.server.requests");
 
         assertProblemAttributesAreNotMetricTags();
     }
@@ -161,6 +204,7 @@ class ObservabilityIntegrationTest {
     @DisplayName("a 500 marks the HTTP observation as failed without copying the exception text")
     void serverErrorMarksObservationFailedWithoutLeakingExceptionText() throws Exception {
         observationRegistry.clear();
+        onErrorNames.clear();
 
         MvcResult result = mockMvc.perform(get("/__test__/observability/boom")).andReturn();
         assertThat(result.getResponse().getStatus()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR.value());
@@ -179,6 +223,7 @@ class ObservabilityIntegrationTest {
                     assertThat(context.getAllKeyValues())
                             .noneMatch(keyValue -> containsSecret(keyValue));
                 });
+        assertThat(onErrorNames.names()).contains("http.server.requests");
 
         assertProblemAttributesAreNotMetricTags();
     }
