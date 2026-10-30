@@ -19,7 +19,7 @@ Referencias: [ADR-002](../../docs/decisions/ADR-002-data-access.md), [ADR-004](.
 ## Esquema
 
 - Tablas y columnas en snake_case (`market_data`, `instrument_id`). Valores de enumerados en inglés y en mayúsculas.
-- Identificadores `BIGINT` (`long` en Java). Montos `NUMERIC` (`BigDecimal`). `orders.size` es `NUMERIC(18,2)`: el adaptador lo convierte a `long` en compras y ventas.
+- Identificadores `BIGINT`, que el adaptador convierte a los value objects del dominio (`AccountId`, `OrderId`, etc.). Montos `NUMERIC` (`BigDecimal`). `orders.size` es `NUMERIC(18,2)`: el adaptador lo convierte a `long` en compras y ventas.
 
 ## Queries que tienen una forma definida
 

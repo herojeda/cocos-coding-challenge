@@ -30,4 +30,4 @@ Referencias: [ADR-003](../../docs/decisions/ADR-003-hexagonal-architecture.md), 
 - Compará con `compareTo`, nunca con `equals` (`equals` distingue `850.0` de `850.00`).
 - Toda división lleva escala y `RoundingMode` explícitos. La cantidad calculada por monto se trunca (`RoundingMode.DOWN`). Si una escala o un redondeo no está definido en las specs o los ADRs, preguntá antes de elegir uno.
 - Cantidades de acciones: `long`. Montos de transferencias: `BigDecimal`.
-- Identificadores: `long`.
+- Identificadores como value objects propios (`AccountId`, `OrderId`, `InstrumentId`, `UserId`): un `record` que envuelve un `long` positivo. Nunca un `long` suelto en una firma del dominio. Cada tipo se crea cuando nace la entidad o el caso que lo usa; la persistencia convierte desde y hacia `BIGINT`.
