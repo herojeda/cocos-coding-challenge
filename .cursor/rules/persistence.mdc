@@ -19,11 +19,11 @@ Referencias: [ADR-002](../../docs/decisions/ADR-002-data-access.md), [ADR-004](.
 ## Esquema
 
 - Tablas y columnas en snake_case (`market_data`, `instrument_id`). Valores de enumerados en inglés y en mayúsculas.
-- Identificadores `BIGINT` (`long` en Java). Montos `NUMERIC` (`BigDecimal`). `orders.size` es `NUMERIC(18,2)`: el adaptador lo convierte a `long` en compras y ventas.
+- Identificadores `BIGINT`, que el adaptador convierte a los value objects del dominio (`AccountId`, `OrderId`, etc.). Montos `NUMERIC` (`BigDecimal`). `orders.size` es `NUMERIC(18,2)`: el adaptador lo convierte a `long` en compras y ventas.
 
 ## Queries que tienen una forma definida
 
 - **Lock de la cuenta:** `SET LOCAL lock_timeout` con el valor configurado y después `SELECT ... FROM accounts WHERE user_id = :userId FOR UPDATE`. Un vencimiento del lock llega como SQLState `55P03` (Spring lo traduce a una `PessimisticLockingFailureException`); el adaptador lo convierte en la excepción de dominio que termina en `ACCOUNT_BUSY`.
 - **Último precio:** `SELECT DISTINCT ON (instrument_id) ... ORDER BY instrument_id, date DESC`.
 - **Búsqueda:** `unaccent(lower(...)) LIKE unaccent(lower(:pattern))` sobre ticker y nombre, excluyendo `CURRENCY`, con el orden de relevancia como `ORDER BY CASE ...`. Escapá `%` y `_` del texto del usuario antes de armar el patrón.
-- **Reconstrucción:** órdenes del usuario ordenadas por `datetime, id`, usando el índice `orders(user_id, datetime, id)`.
+- **Reconstrucción:** órdenes del usuario ordenadas por `datetime, id`, usando el índice `orders(user_id, datetime, id)`, leídas en lotes como un stream (cursor con `fetchSize`, dentro de la transacción) que se cierra al terminar. Nunca cargues el historial completo en una lista.

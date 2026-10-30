@@ -123,7 +123,7 @@ El método de costo y el redondeo de los porcentajes *(pendiente: confirmar supu
 
 ### Requirement: Datos complementarios de cada posición
 
-Cada posición DEBE informar, además, el costo promedio, el resultado realizado y la variación diaria. El resultado realizado DEBE acumular `(precio de venta − costo promedio vigente) × cantidad vendida` de cada venta. La variación diaria DEBE calcularse como `close / previousClose − 1` de la cotización más reciente.
+Cada posición DEBE informar, además, el costo promedio, el resultado realizado y la variación diaria. El resultado realizado DEBE acumular `(precio de venta − costo promedio vigente) × cantidad vendida` de cada venta, calculado solo sobre la cantidad vendida que estaba en tenencia: si una venta supera la tenencia, el excedente NO DEBE generar resultado realizado, porque esas acciones nunca formaron parte de la tenencia. La variación diaria DEBE calcularse como `close / previousClose − 1` de la cotización más reciente.
 
 #### Scenario: PF-12 · Resultado realizado de una venta parcial
 
@@ -139,9 +139,16 @@ Cada posición DEBE informar, además, el costo promedio, el resultado realizado
 - **THEN** el resultado realizado de PAMP es 100 ARS
 - **AND** la variación diaria de PAMP es 0,44%
 
+#### Scenario: PF-16 · Venta que supera la tenencia
+
+- **GIVEN** el usuario 1 de la seed, que compró 20 BMA a 1.540 y después vendió 30 a 1.530
+- **WHEN** consulta su portfolio
+- **THEN** el resultado realizado de BMA es −200 ARS, calculado sobre las 20 acciones que tenía
+- **AND** las 10 acciones vendidas de más NO DEBEN generar resultado realizado
+
 ### Requirement: Posición con tenencia negativa
 
-Una posición con tenencia negativa DEBE listarse con su cantidad y su valor de mercado, que es negativo y resta del valor total. El costo promedio y el rendimiento de esa posición NO DEBEN calcularse: se informan sin valor.
+Una posición con tenencia negativa DEBE listarse con su cantidad y su valor de mercado, que es negativo y resta del valor total. El costo promedio y el rendimiento de esa posición NO DEBEN calcularse: se informan sin valor. Una compra sobre una tenencia negativa DEBE compensar primero el faltante, sin generar costo ni resultado realizado; solo la cantidad que queda por encima de cero forma el costo promedio.
 
 #### Scenario: PF-14 · BMA negativo en la seed
 
@@ -150,6 +157,14 @@ Una posición con tenencia negativa DEBE listarse con su cantidad y su valor de 
 - **WHEN** consulta su portfolio
 - **THEN** la posición en BMA tiene cantidad −10 y valor de mercado −15.028 ARS
 - **AND** el costo promedio y el rendimiento total de BMA se informan sin valor
+
+#### Scenario: PF-17 · Compra sobre una tenencia negativa
+
+- **GIVEN** el usuario 1 de la seed, con tenencia de −10 BMA y resultado realizado de −200 ARS en BMA
+- **AND** una compra `FILLED` posterior de 15 BMA a 1.500
+- **WHEN** consulta su portfolio
+- **THEN** la posición en BMA tiene cantidad 5 y costo promedio 1.500
+- **AND** el resultado realizado de BMA sigue siendo −200 ARS
 
 El tratamiento de la tenencia negativa *(pendiente: confirmar supuesto [S3](../../assumptions.md) con Cocos)*.
 
