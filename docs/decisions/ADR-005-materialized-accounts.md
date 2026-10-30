@@ -72,6 +72,16 @@ No se usa un `CHECK` completo en la base porque la seed trae una tenencia de −
 
 Una única **función de reconstrucción** recalcula la proyección completa de una cuenta desde el libro, recorriendo sus órdenes en orden cronológico con las mismas transiciones del dominio.
 
+#### En orden y en lotes
+
+Reconstruir es un *fold*: se recorre el libro una sola vez y cada orden modifica un estado que crece con la cantidad de instrumentos de la cuenta, no con la de órdenes. Por eso la reconstrucción **no carga el historial completo en memoria**:
+
+- **El orden lo garantiza la consulta**, por `datetime` y después por `id`, usando el índice `orders(user_id, datetime, id)` ([ADR-004](ADR-004-schema-and-migrations.md)).
+- **El dominio consume las órdenes de a una y valida el orden**: si una llega antes que la anterior, falla en lugar de reordenar. Un error en la consulta produce un error visible, no una cuenta incorrecta.
+- **La persistencia lee en lotes**, con un cursor del driver y un tamaño de lote acotado (posible porque la lectura ocurre dentro de una transacción). El dominio no depende de cómo se leen los lotes.
+
+La memoria queda acotada por la cantidad de instrumentos de la cuenta. El **tiempo** de reconstrucción, en cambio, sigue creciendo con el historial y transcurre bajo el lock de la cuenta; eso lo resuelve la evolución documentada más abajo.
+
 #### Cuándo hace falta reconstruir
 
 En operación normal nunca: cada orden actualiza la proyección en la misma transacción. La reconstrucción solo aparece en cuatro casos puntuales, y siempre por cuenta:
@@ -97,6 +107,7 @@ En operación normal nunca: cada orden actualiza la proyección en la misma tran
 #### Evolución documentada
 
 - **Job de reconstrucción en segundo plano.** Procesa las cuentas `PENDING` de forma proactiva, para que el costo no lo pague el primer pedido de cada cuenta. En un entorno con varias instancias, cada una toma cuentas con `SELECT ... FOR UPDATE SKIP LOCKED`, sin coordinación adicional. Con los cuatro usuarios de la seed no aporta nada medible, por eso no se implementa.
+- **Checkpoints de la proyección.** Para historiales muy largos, guardar cada N órdenes una foto de la proyección junto con la posición del libro hasta la que incluye (`datetime`, `id`), y reconstruir desde el último checkpoint en lugar de desde el inicio. Acota el tiempo de reconstrucción, a costa de una tabla más y de invalidar los checkpoints cuando cambia la lógica de la proyección.
 - **Estado de error por cuenta.** Si una reconstrucción falla de forma persistente, la cuenta pasaría a un estado `FAILED` y respondería un error específico hasta que alguien intervenga, en lugar de reintentar en cada acceso.
 
 ## Alternativas consideradas
@@ -105,6 +116,7 @@ En operación normal nunca: cada orden actualiza la proyección en la misma tran
 - **Proyección asincrónica** (eventos, outbox). Consistencia eventual: entre la orden y la actualización, el usuario podría gastar dos veces. No sirve para validar un disponible.
 - **Vista materializada de PostgreSQL.** `REFRESH` recalcula todo y no se actualiza con cada escritura.
 - **Snapshots periódicos más el delta posterior.** Reduce el costo de lectura pero mantiene el agregado, con más complejidad.
+- **Ordenar el historial en el dominio.** Hace a la reconstrucción independiente del orden de entrada, pero obliga a cargar todas las órdenes de la cuenta en memoria antes de empezar, y la memoria pasa a crecer con el historial.
 - **Construir la proyección en una migración Java de Flyway** con el calculador del dominio. Acopla una migración, que debe ser inmutable, a código que va a evolucionar.
 - **Reconstruir las cuentas pendientes al arrancar la aplicación**, antes de aceptar pedidos. Bloquea el readiness, hace competir a las instancias entre sí y solo resuelve la carga inicial, no los otros tres casos.
 - **Reconstruir y persistir también desde las consultas**, tomando el lock. Haría que una lectura tenga efectos: rompe la semántica de una consulta HTTP segura, hace competir las lecturas con las escrituras por el lock e impide atender consultas desde una réplica de lectura.
