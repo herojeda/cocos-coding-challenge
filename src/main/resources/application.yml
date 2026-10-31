@@ -1,6 +1,9 @@
 spring:
   application:
     name: cocos-challenge
+  jackson:
+    # ADR-010: JSON fields in snake_case (Jackson 3 PropertyNamingStrategies.SNAKE_CASE)
+    property-naming-strategy: SNAKE_CASE
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/cocos}
     username: ${DB_USERNAME:cocos}
