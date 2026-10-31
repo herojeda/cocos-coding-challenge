@@ -24,6 +24,7 @@ Cuando Cocos responda, se actualiza el estado acá y, si la respuesta cambia el 
 | S11 | Identificación del usuario sin autenticación | Decisión de diseño |
 | S12 | Transferencias de pesos | Decisión de diseño |
 | S13 | Motivo del rechazo de una orden | Decisión de diseño |
+| S14 | Zona horaria de las fechas de la seed | Decisión de diseño |
 
 ---
 
@@ -167,3 +168,13 @@ Si una orden MARKET no tiene cotización, el motivo es `NO_MARKET_PRICE` aunque 
 **Fundamento:** el estado `REJECTED` dice que la orden no se aceptó, pero no por qué. Con un motivo semántico, el cliente puede reaccionar sin interpretar texto (por ejemplo, ofrecer ingresar pesos ante `INSUFFICIENT_CASH`), lo que mejora la experiencia del usuario. Los valores son parte del contrato de la API, así que el catálogo es cerrado y se amplía solo con un cambio de spec.
 
 **Afecta a:** `order-placement`, y el modelo de datos: el libro de órdenes necesita guardar el motivo (ver ADRs).
+
+## S14 — Zona horaria de las fechas de la seed
+
+**Estado:** decisión de diseño.
+
+**Decisión:** las fechas y horas de las órdenes de la seed se interpretan como hora de Buenos Aires (`America/Argentina/Buenos_Aires`) al convertirlas a instantes. Las órdenes nuevas se registran como instantes en UTC.
+
+**Fundamento:** la seed guarda las fechas sin zona horaria. Los 11 horarios van de las 11:13 a las 16:11, dentro del horario de negociación de BYMA (11 a 17, hora de Argentina). Si fueran UTC, varias órdenes habrían ocurrido antes de la apertura (por ejemplo, 12:11 UTC son las 09:11 en Buenos Aires).
+
+**Afecta a:** el modelo de datos (migración `V5`, ver [ADR-004](decisions/ADR-004-schema-and-migrations.md)) y el orden cronológico del libro, del que dependen el costo promedio y la reconstrucción de la proyección.

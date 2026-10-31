@@ -10,9 +10,10 @@ Referencias: [ADR-004](../../docs/decisions/ADR-004-schema-and-migrations.md), [
 
 - **Nunca modifiques una migración que ya está en `main`.** Un cambio es siempre una migración nueva.
 - `V1__cocos_seed.sql` es una copia textual del `database.sql` de Cocos. No se toca, ni para formatear.
-- Nombres: `V<n>__<descripcion_en_snake_case>.sql`. El contenido de `V2` a `V4` está definido en ADR-004; no muevas cambios de una migración a otra.
+- Nombres: `V<n>__<descripcion_en_snake_case>.sql`. El contenido de `V2` a `V5` está definido en ADR-004; no muevas cambios de una migración a otra.
 - Identificadores `BIGINT`. Al cambiar el tipo de una columna creada con `SERIAL`, cambiá también su secuencia (`ALTER SEQUENCE ... AS BIGINT`).
 - Enumerados como `VARCHAR` con `CHECK`, no como tipos `ENUM` de PostgreSQL. Valores en inglés y en mayúsculas.
 - Montos con `NUMERIC`, nunca con tipos de punto flotante.
+- Momentos del tiempo con `TIMESTAMPTZ`, nunca `TIMESTAMP` sin zona. Al convertir una columna existente, el `USING ... AT TIME ZONE '<zona>'` es obligatorio: sin él, el resultado depende de la zona de la sesión.
 - Todo constraint nuevo tiene que validar contra la seed. Si la seed no lo cumple, no lo fuerces corrigiendo datos: frená y preguntá (la tenencia negativa de BMA es intencional, ver supuesto S3).
 - Cada migración que agrega constraints o columnas tiene un test de integración que verifica el esquema resultante contra la seed.
