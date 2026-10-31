@@ -29,8 +29,8 @@ public final class Account {
         this.costBasisCalculator = Objects.requireNonNull(costBasisCalculator, "costBasisCalculator");
     }
 
-    public static Account empty(AccountId id) {
-        return new Account(id, new WeightedAverageCostBasisCalculator());
+    public static Account empty(AccountId id, CostBasisCalculator costBasisCalculator) {
+        return new Account(id, costBasisCalculator);
     }
 
     public AccountId id() {
@@ -61,13 +61,13 @@ public final class Account {
     public void applyBuyFill(InstrumentId instrumentId, long quantity, BigDecimal price) {
         BigDecimal notional = notional(quantity, price);
         cash = cash.subtract(notional);
-        positionFor(instrumentId).applyBuy(quantity, price);
+        positionFor(instrumentId).applyBuy(costBasisCalculator, quantity, price);
     }
 
     public void applySellFill(InstrumentId instrumentId, long quantity, BigDecimal price) {
         BigDecimal notional = notional(quantity, price);
         cash = cash.add(notional);
-        positionFor(instrumentId).applySell(quantity, price);
+        positionFor(instrumentId).applySell(costBasisCalculator, quantity, price);
     }
 
     public void reserveCash(BigDecimal amount) {
@@ -111,10 +111,11 @@ public final class Account {
      * Processing is always sequential, even if the caller passes a parallel stream. The caller
      * owns the stream lifecycle and must close it (for example when it wraps a JDBC cursor).
      */
-    public static Account rebuildFrom(AccountId accountId, Stream<LedgerEntry> entries) {
+    public static Account rebuildFrom(
+            AccountId accountId, Stream<LedgerEntry> entries, CostBasisCalculator costBasisCalculator) {
         Objects.requireNonNull(accountId, "accountId");
         Objects.requireNonNull(entries, "entries");
-        Account account = empty(accountId);
+        Account account = empty(accountId, costBasisCalculator);
         LedgerEntry[] previous = {null};
         entries.sequential().forEachOrdered(entry -> {
             Objects.requireNonNull(entry, "entry");
@@ -161,8 +162,7 @@ public final class Account {
     }
 
     private Position positionFor(InstrumentId instrumentId) {
-        return positions.computeIfAbsent(
-                instrumentId, id -> new Position(id, costBasisCalculator));
+        return positions.computeIfAbsent(instrumentId, Position::new);
     }
 
     private static BigDecimal requirePrice(LedgerEntry entry) {

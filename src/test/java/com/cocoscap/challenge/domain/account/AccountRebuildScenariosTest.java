@@ -22,6 +22,7 @@ class AccountRebuildScenariosTest {
     private static final Instant T0 = Instant.parse("2023-07-12T13:00:00Z");
     private static final Instant T1 = T0.plusSeconds(3600);
     private static final Instant T2 = T0.plusSeconds(7200);
+    private static final CostBasisCalculator COST_BASIS = new WeightedAverageCostBasisCalculator();
 
     @Test
     @DisplayName("ACB-01 · Órdenes no ejecutadas no mueven el efectivo")
@@ -118,7 +119,7 @@ class AccountRebuildScenariosTest {
     }
 
     private static Account rebuild(LedgerEntry... entries) {
-        return Account.rebuildFrom(ACCOUNT, Stream.of(entries));
+        return Account.rebuildFrom(ACCOUNT, Stream.of(entries), COST_BASIS);
     }
 
     private static LedgerEntry cashIn(long id, String amount, Instant at) {

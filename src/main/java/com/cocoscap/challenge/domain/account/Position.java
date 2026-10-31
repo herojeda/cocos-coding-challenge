@@ -8,18 +8,16 @@ import java.util.Optional;
 /**
  * Holdings for one instrument. Does not enforce non-negative quantity (seed short BMA / S3)
  * or available quantity — order policy does that later. Average cost and realized PnL come only
- * from {@link CostBasisCalculator}.
+ * from {@link CostBasisCalculator}, passed on each fill by {@link Account}.
  */
 public final class Position {
 
     private final InstrumentId instrumentId;
-    private final CostBasisCalculator costBasisCalculator;
     private CostBasisState costBasis = CostBasisState.empty();
     private long reservedQuantity;
 
-    Position(InstrumentId instrumentId, CostBasisCalculator costBasisCalculator) {
+    Position(InstrumentId instrumentId) {
         this.instrumentId = Objects.requireNonNull(instrumentId, "instrumentId");
-        this.costBasisCalculator = Objects.requireNonNull(costBasisCalculator, "costBasisCalculator");
     }
 
     public InstrumentId instrumentId() {
@@ -46,12 +44,12 @@ public final class Position {
         return costBasis.realizedPnl();
     }
 
-    void applyBuy(long quantity, BigDecimal price) {
-        costBasis = costBasisCalculator.applyBuy(costBasis, quantity, price);
+    void applyBuy(CostBasisCalculator calculator, long quantity, BigDecimal price) {
+        costBasis = calculator.applyBuy(costBasis, quantity, price);
     }
 
-    void applySell(long quantity, BigDecimal price) {
-        costBasis = costBasisCalculator.applySell(costBasis, quantity, price);
+    void applySell(CostBasisCalculator calculator, long quantity, BigDecimal price) {
+        costBasis = calculator.applySell(costBasis, quantity, price);
     }
 
     void reserve(long quantity) {
