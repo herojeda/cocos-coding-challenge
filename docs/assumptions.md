@@ -131,6 +131,8 @@ Como datos complementarios se exponen el **resultado realizado** (`(precio de ve
 
 **Decisión:** la búsqueda encuentra instrumentos cuyo ticker o nombre contengan el texto buscado, sin distinguir mayúsculas ni tildes. Los pesos (instrumento de tipo `CURRENCY`) no aparecen en los resultados, porque no son un activo sobre el que se pueda operar. Los resultados se ordenan por relevancia: primero el ticker que coincide exactamente, después los tickers que empiezan con el texto y después el resto, cada grupo por ticker en orden alfabético.
 
+El texto se busca sin los espacios del principio y del final, y como texto literal: un carácter como `%` o `_` no actúa como comodín. Los resultados se entregan paginados, de a 20 por defecto, informando si hay más resultados.
+
 **Afecta a:** `asset-search`.
 
 ## S11 — Identificación del usuario sin autenticación
