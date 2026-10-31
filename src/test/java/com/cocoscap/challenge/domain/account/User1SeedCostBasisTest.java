@@ -6,7 +6,7 @@ import java.math.BigDecimal;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-class PositionCostBasisScenariosTest {
+class User1SeedCostBasisTest {
 
     private static final AccountId ACCOUNT = AccountId.of(1L);
     private static final CostBasisCalculator COST_BASIS = new WeightedAverageCostBasisCalculator();
