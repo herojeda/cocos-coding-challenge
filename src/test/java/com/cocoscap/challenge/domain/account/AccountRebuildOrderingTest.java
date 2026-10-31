@@ -15,6 +15,8 @@ import org.junit.jupiter.api.Test;
 
 class AccountRebuildOrderingTest {
 
+    private static final CostBasisCalculator COST_BASIS = new WeightedAverageCostBasisCalculator();
+
     @Test
     @DisplayName("Rebuild fails when a ledger entry arrives out of order")
     void rebuildRejectsOutOfOrderEntries() {
@@ -23,7 +25,9 @@ class AccountRebuildOrderingTest {
         LedgerEntry first = entry(1, earlier);
         LedgerEntry second = entry(2, later);
 
-        assertThatThrownBy(() -> Account.rebuildFrom(AccountId.of(1L), Stream.of(second, first)))
+        assertThatThrownBy(
+                        () -> Account.rebuildFrom(
+                                AccountId.of(1L), Stream.of(second, first), COST_BASIS))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("ascending");
     }

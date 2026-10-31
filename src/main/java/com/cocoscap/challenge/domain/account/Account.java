@@ -10,24 +10,27 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 /**
- * Materialized cash, reservations and positions. Transitions match ADR-005 except cost basis /
- * realized PnL (next PR). They do not validate available cash or quantity.
+ * Materialized cash, reservations and positions. Transitions match ADR-005, including weighted
+ * average cost and realized PnL via {@link CostBasisCalculator}. They do not validate available
+ * cash or quantity.
  *
  * <p>Equality is by {@link AccountId} only.
  */
 public final class Account {
 
     private final AccountId id;
+    private final CostBasisCalculator costBasisCalculator;
     private BigDecimal cash = BigDecimal.ZERO;
     private BigDecimal reservedCash = BigDecimal.ZERO;
     private final Map<InstrumentId, Position> positions = new LinkedHashMap<>();
 
-    private Account(AccountId id) {
+    private Account(AccountId id, CostBasisCalculator costBasisCalculator) {
         this.id = Objects.requireNonNull(id, "id");
+        this.costBasisCalculator = Objects.requireNonNull(costBasisCalculator, "costBasisCalculator");
     }
 
-    public static Account empty(AccountId id) {
-        return new Account(id);
+    public static Account empty(AccountId id, CostBasisCalculator costBasisCalculator) {
+        return new Account(id, costBasisCalculator);
     }
 
     public AccountId id() {
@@ -58,13 +61,13 @@ public final class Account {
     public void applyBuyFill(InstrumentId instrumentId, long quantity, BigDecimal price) {
         BigDecimal notional = notional(quantity, price);
         cash = cash.subtract(notional);
-        positionFor(instrumentId).applyBuy(quantity);
+        positionFor(instrumentId).applyBuy(costBasisCalculator, quantity, price);
     }
 
     public void applySellFill(InstrumentId instrumentId, long quantity, BigDecimal price) {
         BigDecimal notional = notional(quantity, price);
         cash = cash.add(notional);
-        positionFor(instrumentId).applySell(quantity);
+        positionFor(instrumentId).applySell(costBasisCalculator, quantity, price);
     }
 
     public void reserveCash(BigDecimal amount) {
@@ -108,10 +111,11 @@ public final class Account {
      * Processing is always sequential, even if the caller passes a parallel stream. The caller
      * owns the stream lifecycle and must close it (for example when it wraps a JDBC cursor).
      */
-    public static Account rebuildFrom(AccountId accountId, Stream<LedgerEntry> entries) {
+    public static Account rebuildFrom(
+            AccountId accountId, Stream<LedgerEntry> entries, CostBasisCalculator costBasisCalculator) {
         Objects.requireNonNull(accountId, "accountId");
         Objects.requireNonNull(entries, "entries");
-        Account account = empty(accountId);
+        Account account = empty(accountId, costBasisCalculator);
         LedgerEntry[] previous = {null};
         entries.sequential().forEachOrdered(entry -> {
             Objects.requireNonNull(entry, "entry");

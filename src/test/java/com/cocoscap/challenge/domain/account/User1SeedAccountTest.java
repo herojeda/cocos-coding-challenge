@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 class User1SeedAccountTest {
 
     private static final AccountId USER1_ACCOUNT = AccountId.of(1L);
+    private static final CostBasisCalculator COST_BASIS = new WeightedAverageCostBasisCalculator();
 
     @Test
     @DisplayName("ACB-06 · Tenencia negativa en los datos existentes")
@@ -38,6 +39,7 @@ class User1SeedAccountTest {
     }
 
     private static Account rebuild() {
-        return Account.rebuildFrom(USER1_ACCOUNT, User1SeedLedgerFixture.entries().stream());
+        return Account.rebuildFrom(
+                USER1_ACCOUNT, User1SeedLedgerFixture.entries().stream(), COST_BASIS);
     }
 }

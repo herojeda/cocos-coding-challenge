@@ -21,6 +21,7 @@ class AccountRebuildGuardsTest {
     private static final InstrumentId ARS = InstrumentId.of(66L);
     private static final Instant T0 = Instant.parse("2023-07-12T13:00:00Z");
     private static final Instant T1 = T0.plusSeconds(60);
+    private static final CostBasisCalculator COST_BASIS = new WeightedAverageCostBasisCalculator();
 
     @Test
     @DisplayName("Rebuild accepts a REJECTED MARKET order without price")
@@ -29,7 +30,8 @@ class AccountRebuildGuardsTest {
                 ACCOUNT,
                 Stream.of(
                         entry(1, ARS, OrderSide.CASH_IN, OrderType.MARKET, OrderStatus.FILLED, "100000", "1", T0),
-                        entry(2, GGAL, OrderSide.BUY, OrderType.MARKET, OrderStatus.REJECTED, "10", null, T1)));
+                        entry(2, GGAL, OrderSide.BUY, OrderType.MARKET, OrderStatus.REJECTED, "10", null, T1)),
+                COST_BASIS);
 
         assertThat(account.cash()).isEqualByComparingTo("100000");
         assertThat(account.position(GGAL)).isEmpty();
@@ -41,7 +43,8 @@ class AccountRebuildGuardsTest {
         assertThatThrownBy(() -> Account.rebuildFrom(
                         ACCOUNT,
                         Stream.of(entry(
-                                1, GGAL, OrderSide.BUY, OrderType.MARKET, OrderStatus.NEW, "10", "1000", T0))))
+                                1, GGAL, OrderSide.BUY, OrderType.MARKET, OrderStatus.NEW, "10", "1000", T0)),
+                        COST_BASIS))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("LIMIT");
     }
@@ -52,7 +55,8 @@ class AccountRebuildGuardsTest {
         assertThatThrownBy(() -> Account.rebuildFrom(
                         ACCOUNT,
                         Stream.of(entry(
-                                1, ARS, OrderSide.CASH_IN, OrderType.LIMIT, OrderStatus.NEW, "1000", "1", T0))))
+                                1, ARS, OrderSide.CASH_IN, OrderType.LIMIT, OrderStatus.NEW, "1000", "1", T0)),
+                        COST_BASIS))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("cash transfer");
     }
