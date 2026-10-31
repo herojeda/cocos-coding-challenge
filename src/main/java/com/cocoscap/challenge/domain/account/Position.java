@@ -1,19 +1,25 @@
 package com.cocoscap.challenge.domain.account;
 
 import com.cocoscap.challenge.domain.instrument.InstrumentId;
+import java.math.BigDecimal;
+import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Holdings for one instrument. Does not enforce non-negative quantity (seed short BMA / S3)
- * or available quantity — order policy does that later.
+ * or available quantity — order policy does that later. Average cost and realized PnL come only
+ * from {@link CostBasisCalculator}.
  */
 public final class Position {
 
     private final InstrumentId instrumentId;
-    private long quantity;
+    private final CostBasisCalculator costBasisCalculator;
+    private CostBasisState costBasis = CostBasisState.empty();
     private long reservedQuantity;
 
-    Position(InstrumentId instrumentId) {
-        this.instrumentId = instrumentId;
+    Position(InstrumentId instrumentId, CostBasisCalculator costBasisCalculator) {
+        this.instrumentId = Objects.requireNonNull(instrumentId, "instrumentId");
+        this.costBasisCalculator = Objects.requireNonNull(costBasisCalculator, "costBasisCalculator");
     }
 
     public InstrumentId instrumentId() {
@@ -21,7 +27,7 @@ public final class Position {
     }
 
     public long quantity() {
-        return quantity;
+        return costBasis.quantity();
     }
 
     public long reservedQuantity() {
@@ -29,17 +35,23 @@ public final class Position {
     }
 
     public long availableQuantity() {
-        return quantity - reservedQuantity;
+        return quantity() - reservedQuantity;
     }
 
-    void applyBuy(long quantity) {
-        requirePositive(quantity);
-        this.quantity = Math.addExact(this.quantity, quantity);
+    public Optional<BigDecimal> averageCost() {
+        return costBasis.averageCost();
     }
 
-    void applySell(long quantity) {
-        requirePositive(quantity);
-        this.quantity = Math.subtractExact(this.quantity, quantity);
+    public BigDecimal realizedPnl() {
+        return costBasis.realizedPnl();
+    }
+
+    void applyBuy(long quantity, BigDecimal price) {
+        costBasis = costBasisCalculator.applyBuy(costBasis, quantity, price);
+    }
+
+    void applySell(long quantity, BigDecimal price) {
+        costBasis = costBasisCalculator.applySell(costBasis, quantity, price);
     }
 
     void reserve(long quantity) {
