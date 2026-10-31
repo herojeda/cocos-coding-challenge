@@ -1,20 +1,22 @@
 package com.cocoscap.challenge.domain.account;
 
+import com.cocoscap.challenge.domain.instrument.InstrumentId;
+
 /**
  * Holdings for one instrument. Does not enforce non-negative quantity (seed short BMA / S3)
  * or available quantity — order policy does that later.
  */
 public final class Position {
 
-    private final long instrumentId;
+    private final InstrumentId instrumentId;
     private long quantity;
     private long reservedQuantity;
 
-    Position(long instrumentId) {
+    Position(InstrumentId instrumentId) {
         this.instrumentId = instrumentId;
     }
 
-    public long instrumentId() {
+    public InstrumentId instrumentId() {
         return instrumentId;
     }
 

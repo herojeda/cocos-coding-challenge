@@ -2,23 +2,26 @@ package com.cocoscap.challenge.domain.account;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.cocoscap.challenge.domain.instrument.InstrumentId;
+import com.cocoscap.challenge.domain.order.OrderId;
 import com.cocoscap.challenge.domain.order.OrderSide;
 import com.cocoscap.challenge.domain.order.OrderStatus;
 import com.cocoscap.challenge.domain.order.OrderType;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.List;
+import java.time.Instant;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class AccountRebuildScenariosTest {
 
-    private static final long GGAL = 34L;
-    private static final long PAMP = 47L;
-    private static final long ARS = 66L;
-    private static final LocalDateTime T0 = LocalDateTime.of(2023, 7, 12, 10, 0);
-    private static final LocalDateTime T1 = T0.plusHours(1);
-    private static final LocalDateTime T2 = T0.plusHours(2);
+    private static final AccountId ACCOUNT = AccountId.of(1L);
+    private static final InstrumentId GGAL = InstrumentId.of(34L);
+    private static final InstrumentId PAMP = InstrumentId.of(47L);
+    private static final InstrumentId ARS = InstrumentId.of(66L);
+    private static final Instant T0 = Instant.parse("2023-07-12T13:00:00Z");
+    private static final Instant T1 = T0.plusSeconds(3600);
+    private static final Instant T2 = T0.plusSeconds(7200);
 
     @Test
     @DisplayName("ACB-01 · Órdenes no ejecutadas no mueven el efectivo")
@@ -115,32 +118,39 @@ class AccountRebuildScenariosTest {
     }
 
     private static Account rebuild(LedgerEntry... entries) {
-        return Account.rebuildFrom(List.of(entries));
+        return Account.rebuildFrom(ACCOUNT, Stream.of(entries));
     }
 
-    private static LedgerEntry cashIn(long id, String amount, LocalDateTime at) {
+    private static LedgerEntry cashIn(long id, String amount, Instant at) {
         return order(id, ARS, OrderSide.CASH_IN, OrderType.MARKET, OrderStatus.FILLED, amount, "1", at);
     }
 
-    private static LedgerEntry cashOut(long id, String amount, LocalDateTime at) {
+    private static LedgerEntry cashOut(long id, String amount, Instant at) {
         return order(id, ARS, OrderSide.CASH_OUT, OrderType.MARKET, OrderStatus.FILLED, amount, "1", at);
     }
 
     private static LedgerEntry filled(
-            long id, long instrumentId, OrderSide side, String size, String price, LocalDateTime at) {
+            long id, InstrumentId instrumentId, OrderSide side, String size, String price, Instant at) {
         return order(id, instrumentId, side, OrderType.MARKET, OrderStatus.FILLED, size, price, at);
     }
 
     private static LedgerEntry order(
             long id,
-            long instrumentId,
+            InstrumentId instrumentId,
             OrderSide side,
             OrderType type,
             OrderStatus status,
             String size,
             String price,
-            LocalDateTime at) {
+            Instant at) {
         return new LedgerEntry(
-                id, instrumentId, side, type, status, new BigDecimal(size), new BigDecimal(price), at);
+                OrderId.of(id),
+                instrumentId,
+                side,
+                type,
+                status,
+                new BigDecimal(size),
+                new BigDecimal(price),
+                at);
     }
 }
