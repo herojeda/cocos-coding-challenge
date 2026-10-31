@@ -15,6 +15,10 @@ Referencias: [ADR-007](../../docs/decisions/ADR-007-error-handling.md), [ADR-008
 - Validación de formato con Bean Validation en los DTOs. Las reglas de negocio (disponible, estados) las decide el dominio.
 - El usuario se identifica explícitamente en cada pedido (no hay autenticación, supuesto S11).
 
+## Fechas
+
+- Los momentos del tiempo se exponen en ISO-8601 con UTC (`2023-07-12T15:11:20Z`); las fechas de calendario, como `2023-07-14`. Nunca una fecha sin zona para un instante.
+
 ## Respuestas de órdenes
 
 - Una orden registrada responde `201 Created`, **también si quedó `REJECTED`**: un rechazo es un resultado, no un error.
