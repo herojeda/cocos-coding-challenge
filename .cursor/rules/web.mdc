@@ -8,6 +8,10 @@ alwaysApply: false
 
 Referencias: [ADR-007](../../docs/decisions/ADR-007-error-handling.md), [ADR-010](../../docs/decisions/ADR-010-api-contract.md), [ADR-008](../../docs/decisions/ADR-008-idempotency.md), supuesto [S8](../../docs/assumptions.md).
 
+## Paquetes
+
+- Un subpaquete por concepto (`adapter/in/web/instrument/`), con el controller y sus DTOs. `adapter/in/web/error/` queda para Problem Details.
+
 ## Controllers y contrato
 
 - Los controllers solo traducen: validan el formato del pedido, llaman al caso de uso y arman la respuesta. Ninguna regla de negocio.

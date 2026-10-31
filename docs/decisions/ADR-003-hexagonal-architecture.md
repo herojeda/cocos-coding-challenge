@@ -27,6 +27,31 @@ Las reglas de dependencia se verifican con **ArchUnit**, como parte de la suite 
 - `domain` no depende de ningún otro paquete del proyecto ni de Spring, JDBC o Jackson.
 - `application` depende solo de `domain`. La única dependencia de Spring permitida es `@Transactional` (ver abajo).
 - Los adaptadores no dependen entre sí.
+- Los subpaquetes de `domain` no tienen ciclos entre sí.
+
+### Subpaquetes por concepto
+
+Dentro de cada capa, las clases se agrupan en un subpaquete por concepto del dominio, con los mismos nombres en todas las capas:
+
+```
+domain/
+  account/                 Account (raíz del agregado), Position, AccountId,
+                           AccountSnapshot, LedgerEntry, excepciones de la cuenta
+  costbasis/               CostBasisCalculator, CostBasisState,
+                           WeightedAverageCostBasisCalculator
+  order/                   Order, OrderId, enumerados, OrderPlacementPolicy,
+                           motivo de rechazo, excepciones de la orden
+  instrument/              Instrument, InstrumentId, InstrumentType
+application/<concepto>/    casos de uso y sus puertos (instrument/SearchInstruments)
+adapter/in/web/<concepto>/ controllers y DTOs (error/ queda para Problem Details)
+adapter/out/persistence/<concepto>/ adaptadores con JdbcClient y sus filas
+```
+
+- **Un agregado es un paquete.** La raíz, sus entidades internas, sus value objects y sus excepciones viven juntos. Las entidades internas exponen sus mutadores como package-private, así que solo la raíz puede modificarlas: en Java, el paquete es la única frontera de visibilidad entre clases, y tiene que coincidir con la frontera del agregado. Por ejemplo, una `Position` solo cambia a través de su `Account`.
+- **Un concepto con API propia es otro paquete.** El costo promedio no depende de la cuenta, tiene una interfaz pública y lo usan la cuenta y el portfolio, así que vive en `costbasis`.
+- **No se agrupa por tipo de clase** (`entity/`, `valueobject/`, `service/`). Separaría un agregado de sus entidades internas y obligaría a hacer públicos sus mutadores, y dispersaría un mismo concepto en varias carpetas. El rol de cada clase se lee en su nombre y su forma: `*Id` y los `record` son value objects, `*Policy` y `*Calculator` son servicios de dominio, y `*Exception` son excepciones.
+- **Un tipo que comparten varios conceptos** va en un paquete con el nombre de lo que es, como `application/pagination/`. Nunca en `common`, `shared` ni `util`.
+- **Cuando un paquete supera unas diez clases,** se busca un subconcepto con responsabilidad propia para separarlo. Nunca se parte por tipo de clase.
 
 ### Excepción explícita: `@Transactional` en `application`
 
@@ -42,6 +67,7 @@ Los supuestos pendientes de confirmación quedan cada uno en una sola pieza, par
 ## Alternativas consideradas
 
 - **Multi-módulo de Gradle** (un módulo `domain` que físicamente no puede depender de Spring). Es la versión más estricta, pero para cuatro casos de uso es ceremonia; ArchUnit da la misma garantía con menos estructura.
+- **Feature primero** (`instrument/{domain,application,adapter}`). Cada carpeta tendría un flujo completo, pero los casos de uso cruzan agregados: enviar una orden usa la cuenta, la orden, el instrumento y la cotización. Las features no quedan independientes, y las reglas de dependencia entre capas serían más difíciles de expresar. Las capas primero, con subpaquetes por concepto, dan el mismo orden por responsabilidad.
 - **Por capas clásico** (controller, service, repository). Más simple, pero mezcla las reglas de negocio con el acceso a datos y obliga a testear contra la base lo que debería ser un test unitario.
 - **Puerto `UnitOfWork`** en lugar de `@Transactional`: una interfaz en `application` implementada con `TransactionTemplate` en un adaptador. Deja `application` libre de Spring, a costa de más código para un beneficio que hoy es teórico. Es la **evolución** natural si la capa de aplicación tuviera que ejecutarse fuera de Spring o con otro mecanismo transaccional.
 
