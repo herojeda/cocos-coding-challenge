@@ -105,13 +105,15 @@ public final class Account {
     /**
      * Rebuilds an existing account from an already-ordered ledger stream. Does not sort or buffer
      * the history; fails if entries are not strictly increasing by {@code (datetime, id)}.
+     * Processing is always sequential, even if the caller passes a parallel stream. The caller
+     * owns the stream lifecycle and must close it (for example when it wraps a JDBC cursor).
      */
     public static Account rebuildFrom(AccountId accountId, Stream<LedgerEntry> entries) {
         Objects.requireNonNull(accountId, "accountId");
         Objects.requireNonNull(entries, "entries");
         Account account = empty(accountId);
         LedgerEntry[] previous = {null};
-        entries.forEach(entry -> {
+        entries.sequential().forEachOrdered(entry -> {
             Objects.requireNonNull(entry, "entry");
             if (previous[0] != null && compareLedgerOrder(entry, previous[0]) <= 0) {
                 throw new IllegalStateException(
