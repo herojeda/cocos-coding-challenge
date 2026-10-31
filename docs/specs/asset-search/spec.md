@@ -75,7 +75,7 @@ Los resultados DEBEN ordenarse por relevancia: primero el instrumento cuyo ticke
 
 ### Requirement: Texto de búsqueda
 
-El sistema DEBE rechazar con un error de validación una búsqueda sin texto o con solo espacios. Una búsqueda válida sin coincidencias NO DEBE responderse como error.
+El sistema DEBE rechazar con un error de validación una búsqueda sin texto o con solo espacios. Una búsqueda válida sin coincidencias NO DEBE responderse como error. El texto DEBE buscarse sin los espacios del principio y del final, y como texto literal: ningún carácter del texto DEBE actuar como comodín.
 
 #### Scenario: AS-08 · Búsqueda vacía
 
@@ -89,4 +89,53 @@ El sistema DEBE rechazar con un error de validación una búsqueda sin texto o c
 - **WHEN** un usuario busca "zzz"
 - **THEN** el resultado es una lista vacía
 
-La cantidad máxima de resultados por búsqueda *(pendiente: definir un límite)*.
+#### Scenario: AS-10 · Texto con espacios alrededor
+
+- **GIVEN** el catálogo de instrumentos de la seed
+- **WHEN** un usuario busca "  moli  "
+- **THEN** el resultado es MOLI, MOLA y SEMI, en ese orden
+
+#### Scenario: AS-11 · Caracteres que no son comodines
+
+- **GIVEN** el catálogo de instrumentos de la seed, en el que ningún ticker ni nombre contiene "%" ni "_"
+- **WHEN** un usuario busca "%"
+- **THEN** el resultado es una lista vacía
+- **AND** lo mismo ocurre si busca "_"
+
+### Requirement: Paginación de los resultados
+
+Los resultados DEBEN entregarse por páginas, en el orden de relevancia. Cada página DEBE informar si hay más resultados después de ella. Si el usuario no indica la página ni el tamaño, el sistema DEBE devolver la primera página con 20 resultados como máximo. El tamaño de página DEBE estar entre 1 y 100, y el número de página NO DEBE ser negativo; un valor fuera de rango DEBE rechazarse con un error de validación. Una página posterior a la última NO DEBE responderse como error.
+
+#### Scenario: AS-12 · Primera página por defecto
+
+- **GIVEN** el catálogo de la seed, en el que 59 instrumentos contienen "a" en el ticker o en el nombre
+- **WHEN** un usuario busca "a" sin indicar página ni tamaño
+- **THEN** el resultado tiene 20 instrumentos, de AGRO a CVH en el orden de relevancia
+- **AND** informa que hay más resultados
+
+#### Scenario: AS-13 · Páginas siguientes
+
+- **GIVEN** el catálogo de la seed, en el que la búsqueda "banco" encuentra BBAR, BHIP, BMA y BPAT
+- **WHEN** un usuario busca "banco" con páginas de 2 resultados
+- **THEN** la primera página es BBAR y BHIP, e informa que hay más resultados
+- **AND** la segunda página es BMA y BPAT, e informa que no hay más resultados
+
+#### Scenario: AS-14 · Página posterior a la última
+
+- **GIVEN** el catálogo de la seed, en el que la búsqueda "banco" encuentra 4 instrumentos
+- **WHEN** un usuario pide la tercera página de "banco" con páginas de 2 resultados
+- **THEN** el resultado es una lista vacía
+- **AND** informa que no hay más resultados
+
+#### Scenario: AS-15 · Tamaño de página fuera de rango
+
+- **GIVEN** el catálogo de instrumentos de la seed
+- **WHEN** un usuario busca "banco" con páginas de 0 resultados
+- **THEN** el pedido se responde con un error de validación
+- **AND** lo mismo ocurre con páginas de 101 resultados
+
+#### Scenario: AS-16 · Número de página negativo
+
+- **GIVEN** el catálogo de instrumentos de la seed
+- **WHEN** un usuario pide la página −1 de "banco"
+- **THEN** el pedido se responde con un error de validación

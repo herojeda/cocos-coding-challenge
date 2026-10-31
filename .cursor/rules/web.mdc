@@ -6,7 +6,7 @@ alwaysApply: false
 
 # Adaptador web
 
-Referencias: [ADR-007](../../docs/decisions/ADR-007-error-handling.md), [ADR-008](../../docs/decisions/ADR-008-idempotency.md), supuesto [S8](../../docs/assumptions.md).
+Referencias: [ADR-007](../../docs/decisions/ADR-007-error-handling.md), [ADR-010](../../docs/decisions/ADR-010-api-contract.md), [ADR-008](../../docs/decisions/ADR-008-idempotency.md), supuesto [S8](../../docs/assumptions.md).
 
 ## Controllers y contrato
 
@@ -14,6 +14,13 @@ Referencias: [ADR-007](../../docs/decisions/ADR-007-error-handling.md), [ADR-008
 - Request y response como `record` propios del adaptador. Nunca expongas objetos del dominio en el contrato.
 - Validación de formato con Bean Validation en los DTOs. Las reglas de negocio (disponible, estados) las decide el dominio.
 - El usuario se identifica explícitamente en cada pedido (no hay autenticación, supuesto S11).
+
+## Recursos, campos y listas
+
+- Rutas con los sustantivos de las specs, en inglés y en plural (`/instruments`, `/orders`). Los filtros son parámetros de la query (`GET /instruments?search=`).
+- Campos del JSON y parámetros en snake_case, con la estrategia `SNAKE_CASE` de Jackson configurada una vez para toda la aplicación. Nada de `@JsonProperty` por campo.
+- Una lista se responde como objeto (`{"instruments": [...], "page": {...}}`), nunca como array en la raíz.
+- Paginación con `page` (desde 0) y `size` (por defecto 20, entre 1 y 100). La respuesta informa `page.number`, `page.size` y `page.has_next`, nunca el total.
 
 ## Fechas
 

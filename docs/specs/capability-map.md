@@ -23,7 +23,7 @@ Información de los instrumentos que se pueden operar.
 
 | Capacidad | Carpeta | Qué cubre | Fuentes | Ola | Spec |
 |---|---|---|---|---|---|
-| Búsqueda de activos | `asset-search` | Búsqueda por ticker o nombre, exclusión de la moneda, datos y orden de los resultados | Enunciado, S10 | 2 | [En spec](./asset-search/spec.md) |
+| Búsqueda de activos | `asset-search` | Búsqueda por ticker o nombre, exclusión de la moneda, datos, orden y paginación de los resultados | Enunciado, S10 | 2 | [En spec](./asset-search/spec.md) |
 
 ## Órdenes
 
