@@ -7,15 +7,15 @@ import com.cocoscap.challenge.domain.instrument.Instrument;
 import com.cocoscap.challenge.domain.instrument.InstrumentId;
 import com.cocoscap.challenge.domain.instrument.InstrumentSearchCriteria;
 import com.cocoscap.challenge.domain.instrument.InstrumentSearchText;
-import com.cocoscap.challenge.domain.instrument.InstrumentSort;
 import com.cocoscap.challenge.domain.instrument.InstrumentType;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.jdbc.core.simple.JdbcClient;
-import org.springframework.jdbc.core.simple.JdbcClient.StatementSpec;
 
 /**
  * Accent-insensitive instrument search excluding CURRENCY. Builds WHERE/ORDER BY from fixed
- * fragments per present filter and sort; uses size+1 for hasNext.
+ * fragments that carry their own bind parameters; uses size+1 for hasNext.
  */
 public class JdbcInstrumentSearchAdapter implements InstrumentSearchPort {
 
@@ -27,6 +27,8 @@ public class JdbcInstrumentSearchAdapter implements InstrumentSearchPort {
 
     @Override
     public Page<Instrument> search(InstrumentSearchCriteria criteria, Pagination pagination) {
+        SqlFragment where = where(criteria);
+        SqlFragment orderBy = orderBy(criteria);
         String sql =
                 """
                 SELECT i.id, i.ticker, i.name, i.type
@@ -35,15 +37,17 @@ public class JdbcInstrumentSearchAdapter implements InstrumentSearchPort {
                 %s
                 LIMIT :limit OFFSET :offset
                 """
-                        .formatted(where(criteria), orderBy(criteria));
+                        .formatted(where.sql(), orderBy.sql());
 
-        StatementSpec statement = jdbcClient
+        List<InstrumentRow> rows = jdbcClient
                 .sql(sql)
+                .params(where.params())
+                .params(orderBy.params())
                 .param("limit", pagination.size() + 1)
-                .param("offset", pagination.offset());
-        bindParams(statement, criteria);
+                .param("offset", pagination.offset())
+                .query(InstrumentRow.class)
+                .list();
 
-        List<InstrumentRow> rows = statement.query(InstrumentRow.class).list();
         boolean hasNext = rows.size() > pagination.size();
         List<Instrument> items = rows.stream()
                 .limit(pagination.size())
@@ -52,30 +56,35 @@ public class JdbcInstrumentSearchAdapter implements InstrumentSearchPort {
         return new Page<>(items, pagination.page(), pagination.size(), hasNext);
     }
 
-    private static String where(InstrumentSearchCriteria criteria) {
+    private static SqlFragment where(InstrumentSearchCriteria criteria) {
         StringBuilder clause = new StringBuilder("WHERE i.type <> 'CURRENCY'");
-        if (criteria.ticker().isPresent()) {
+        Map<String, Object> params = new LinkedHashMap<>();
+        criteria.ticker().ifPresent(text -> {
             clause.append(
                     " AND unaccent(lower(i.ticker)) LIKE unaccent(lower(:tickerPattern)) ESCAPE '\\'");
-        }
-        if (criteria.name().isPresent()) {
+            params.put("tickerPattern", containsPattern(text));
+        });
+        criteria.name().ifPresent(text -> {
             clause.append(
                     " AND unaccent(lower(i.name)) LIKE unaccent(lower(:namePattern)) ESCAPE '\\'");
-        }
-        return clause.toString();
+            params.put("namePattern", containsPattern(text));
+        });
+        return new SqlFragment(clause.toString(), Map.copyOf(params));
     }
 
-    private static String orderBy(InstrumentSearchCriteria criteria) {
+    private static SqlFragment orderBy(InstrumentSearchCriteria criteria) {
         return switch (criteria.sort()) {
             case RELEVANCE -> relevanceOrder(criteria);
-            case TICKER -> "ORDER BY i.ticker";
-            case NAME -> "ORDER BY unaccent(lower(i.name)), i.ticker";
+            case TICKER -> new SqlFragment("ORDER BY i.ticker", Map.of());
+            case NAME -> new SqlFragment("ORDER BY unaccent(lower(i.name)), i.ticker", Map.of());
         };
     }
 
-    private static String relevanceOrder(InstrumentSearchCriteria criteria) {
+    private static SqlFragment relevanceOrder(InstrumentSearchCriteria criteria) {
         if (criteria.ticker().isPresent()) {
-            return """
+            InstrumentSearchText text = criteria.ticker().orElseThrow();
+            return new SqlFragment(
+                    """
                     ORDER BY
                       CASE
                         WHEN unaccent(lower(i.ticker)) = unaccent(lower(:tickerExact)) THEN 0
@@ -84,10 +93,15 @@ public class JdbcInstrumentSearchAdapter implements InstrumentSearchPort {
                         ELSE 2
                       END,
                       i.ticker
-                    """;
+                    """,
+                    Map.of(
+                            "tickerExact", text.value(),
+                            "tickerPrefix", prefixPattern(text)));
         }
         if (criteria.name().isPresent()) {
-            return """
+            InstrumentSearchText text = criteria.name().orElseThrow();
+            return new SqlFragment(
+                    """
                     ORDER BY
                       CASE
                         WHEN unaccent(lower(i.name)) = unaccent(lower(:nameExact)) THEN 0
@@ -96,34 +110,20 @@ public class JdbcInstrumentSearchAdapter implements InstrumentSearchPort {
                         ELSE 2
                       END,
                       i.ticker
-                    """;
+                    """,
+                    Map.of(
+                            "nameExact", text.value(),
+                            "namePrefix", prefixPattern(text)));
         }
-        return "ORDER BY i.ticker";
+        return new SqlFragment("ORDER BY i.ticker", Map.of());
     }
 
-    private static void bindParams(StatementSpec statement, InstrumentSearchCriteria criteria) {
-        criteria.ticker().ifPresent(text -> {
-            bindContains(statement, "tickerPattern", text);
-            if (criteria.sort() == InstrumentSort.RELEVANCE) {
-                bindRelevance(statement, "ticker", text);
-            }
-        });
-        criteria.name().ifPresent(text -> {
-            bindContains(statement, "namePattern", text);
-            if (criteria.sort() == InstrumentSort.RELEVANCE && criteria.ticker().isEmpty()) {
-                bindRelevance(statement, "name", text);
-            }
-        });
+    private static String containsPattern(InstrumentSearchText text) {
+        return "%" + escapeLikeMetacharacters(text.value()) + "%";
     }
 
-    private static void bindContains(StatementSpec statement, String param, InstrumentSearchText text) {
-        statement.param(param, "%" + escapeLikeMetacharacters(text.value()) + "%");
-    }
-
-    private static void bindRelevance(StatementSpec statement, String field, InstrumentSearchText text) {
-        String escaped = escapeLikeMetacharacters(text.value());
-        statement.param(field + "Exact", text.value());
-        statement.param(field + "Prefix", escaped + "%");
+    private static String prefixPattern(InstrumentSearchText text) {
+        return escapeLikeMetacharacters(text.value()) + "%";
     }
 
     static String escapeLikeMetacharacters(String text) {
@@ -133,6 +133,9 @@ public class JdbcInstrumentSearchAdapter implements InstrumentSearchPort {
     private static Instrument toDomain(InstrumentRow row) {
         return new Instrument(
                 InstrumentId.of(row.id()), row.ticker(), row.name(), InstrumentType.valueOf(row.type()));
+    }
+
+    private record SqlFragment(String sql, Map<String, Object> params) {
     }
 
     record InstrumentRow(long id, String ticker, String name, String type) {

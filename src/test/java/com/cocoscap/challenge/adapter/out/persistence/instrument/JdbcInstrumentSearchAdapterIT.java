@@ -12,8 +12,12 @@ import com.cocoscap.challenge.domain.instrument.InstrumentSearchText;
 import com.cocoscap.challenge.domain.instrument.InstrumentSort;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
@@ -131,11 +135,32 @@ class JdbcInstrumentSearchAdapterIT {
     }
 
     @Test
-    @DisplayName("AS-14 · Página con offset que desborda int")
+    @DisplayName("AS-14 · Página posterior a la última (offset mayor que int)")
     void as14_overflow() {
         Page<Instrument> page = search(name("banco"), page(Integer.MAX_VALUE, 100));
         assertThat(page.items()).isEmpty();
         assertThat(page.hasNext()).isFalse();
+    }
+
+    @ParameterizedTest(name = "{0} / ticker={1} / name={2}")
+    @MethodSource("filterAndSortCombinations")
+    void everyFilterAndSortCombinationExecutes(InstrumentSort sort, boolean withTicker, boolean withName) {
+        Optional<InstrumentSearchText> ticker =
+                withTicker ? Optional.of(new InstrumentSearchText("a")) : Optional.empty();
+        Optional<InstrumentSearchText> name =
+                withName ? Optional.of(new InstrumentSearchText("a")) : Optional.empty();
+        Page<Instrument> page =
+                search(new InstrumentSearchCriteria(ticker, name, sort), page(0, Pagination.DEFAULT_SIZE));
+        assertThat(page.items()).isNotNull();
+    }
+
+    static Stream<Arguments> filterAndSortCombinations() {
+        return Stream.of(InstrumentSort.values())
+                .flatMap(sort -> Stream.of(
+                        Arguments.of(sort, false, false),
+                        Arguments.of(sort, true, false),
+                        Arguments.of(sort, false, true),
+                        Arguments.of(sort, true, true)));
     }
 
     @Test
