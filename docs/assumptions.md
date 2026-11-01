@@ -133,7 +133,7 @@ Como datos complementarios se exponen el **resultado realizado** (`(precio de ve
 
 Los pesos (instrumento de tipo `CURRENCY`) no aparecen nunca en los resultados, porque no son un activo sobre el que se pueda operar.
 
-El usuario elige el orden: por relevancia (el valor por defecto), por ticker o por nombre. La relevancia pone primero la coincidencia exacta, después los que empiezan con el texto y después el resto, calculada sobre el filtro de ticker si está y, si no, sobre el de nombre. Los empates se ordenan por ticker.
+El usuario elige el orden: por ticker (el valor por defecto) o por nombre, siempre alfabético. Los empates se ordenan por ticker. No hay orden por relevancia: con filtros explícitos, el usuario ya sabe por qué campo coincidió cada resultado, y un orden alfabético es predecible y paginable sin calcular la cercanía al texto.
 
 El texto de cada filtro se busca sin los espacios del principio y del final, y como texto literal: un carácter como `%` o `_` no actúa como comodín. Un filtro presente pero vacío es un error. Los resultados se entregan paginados, de a 20 por defecto, informando si hay más resultados.
 

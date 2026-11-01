@@ -99,31 +99,19 @@ Cada resultado DEBE informar el identificador, el ticker, el nombre y el tipo de
 
 ### Requirement: Orden de los resultados
 
-El usuario DEBE poder elegir el orden entre `RELEVANCE`, `TICKER` y `NAME`, siempre ascendente. Si no lo indica, el orden DEBE ser `RELEVANCE`. Un orden fuera de esos valores DEBE rechazarse con un error de validación.
+El usuario DEBE poder elegir el orden entre `TICKER` y `NAME`, siempre ascendente. Si no lo indica, el orden DEBE ser `TICKER`. Un orden fuera de esos valores DEBE rechazarse con un error de validación.
 
-- `RELEVANCE` ordena por cercanía al filtro: primero el instrumento que coincide exactamente con el texto, después los que empiezan con el texto y por último el resto. Se calcula sobre el filtro de ticker si está presente y, si no, sobre el de nombre. Sin filtros, equivale a `TICKER`.
 - `TICKER` ordena alfabéticamente por ticker.
 - `NAME` ordena alfabéticamente por nombre, sin distinguir mayúsculas ni tildes.
 
 En todos los casos, los instrumentos que empatan DEBEN quedar en orden alfabético por ticker.
 
-#### Scenario: AS-07 · Relevancia sobre el ticker
-
-- **GIVEN** el catálogo de la seed, con PATA y BPAT, más un instrumento de prueba con ticker PAT
-- **WHEN** un usuario filtra por ticker "pat" sin indicar el orden
-- **THEN** el resultado es PAT, PATA y BPAT, en ese orden
-
-#### Scenario: AS-21 · Relevancia sobre el nombre
-
-- **GIVEN** el catálogo de la seed, en el que seis instrumentos tienen "gas" en el nombre y solo GBAN (Gas Natural Ban S.A.) empieza con esa palabra
-- **WHEN** un usuario filtra por nombre "gas" sin indicar el orden
-- **THEN** el resultado es GBAN, CGPA2, DGCU2, METR, TGNO4 y TGSU2, en ese orden
-
 #### Scenario: AS-22 · Orden por ticker
 
 - **GIVEN** el catálogo de la seed, con GCLA (Grupo Clarin S.A.), GGAL (Grupo Financiero Galicia), SUPV (Grupo Supervielle S.A.) y OEST (Oeste Grupo Concesionario)
-- **WHEN** un usuario filtra por nombre "grupo" con orden `TICKER`
+- **WHEN** un usuario filtra por nombre "grupo" sin indicar el orden
 - **THEN** el resultado es GCLA, GGAL, OEST y SUPV, en ese orden
+- **AND** el resultado es el mismo con orden `TICKER`
 
 #### Scenario: AS-23 · Orden por nombre
 
@@ -134,7 +122,7 @@ En todos los casos, los instrumentos que empatan DEBEN quedar en orden alfabéti
 #### Scenario: AS-24 · Orden inválido
 
 - **GIVEN** el catálogo de instrumentos de la seed
-- **WHEN** un usuario busca con un orden que no es `RELEVANCE`, `TICKER` ni `NAME`
+- **WHEN** un usuario busca con un orden que no es `TICKER` ni `NAME`
 - **THEN** el pedido se responde con un error de validación
 
 ### Requirement: Texto de los filtros
