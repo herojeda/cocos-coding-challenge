@@ -129,9 +129,13 @@ Como datos complementarios se exponen el **resultado realizado** (`(precio de ve
 
 **Estado:** decisión de diseño.
 
-**Decisión:** la búsqueda encuentra instrumentos cuyo ticker o nombre contengan el texto buscado, sin distinguir mayúsculas ni tildes. Los pesos (instrumento de tipo `CURRENCY`) no aparecen en los resultados, porque no son un activo sobre el que se pueda operar. Los resultados se ordenan por relevancia: primero el ticker que coincide exactamente, después los tickers que empiezan con el texto y después el resto, cada grupo por ticker en orden alfabético.
+**Decisión:** el enunciado pide "búsqueda por ticker y/o por nombre". Se interpreta como dos filtros explícitos que el usuario elige: por ticker, por nombre o por los dos. Cada filtro busca solo en su campo los instrumentos que contengan el texto, sin distinguir mayúsculas ni tildes. Con los dos filtros, el resultado tiene los instrumentos que cumplen ambos. Sin filtros, el resultado es el catálogo completo. Así el usuario sabe siempre por qué concepto se filtró. Un único texto que busque en los dos campos lo ocultaría.
 
-El texto se busca sin los espacios del principio y del final, y como texto literal: un carácter como `%` o `_` no actúa como comodín. Los resultados se entregan paginados, de a 20 por defecto, informando si hay más resultados.
+Los pesos (instrumento de tipo `CURRENCY`) no aparecen nunca en los resultados, porque no son un activo sobre el que se pueda operar.
+
+El usuario elige el orden: por relevancia (el valor por defecto), por ticker o por nombre. La relevancia pone primero la coincidencia exacta, después los que empiezan con el texto y después el resto, calculada sobre el filtro de ticker si está y, si no, sobre el de nombre. Los empates se ordenan por ticker.
+
+El texto de cada filtro se busca sin los espacios del principio y del final, y como texto literal: un carácter como `%` o `_` no actúa como comodín. Un filtro presente pero vacío es un error. Los resultados se entregan paginados, de a 20 por defecto, informando si hay más resultados.
 
 **Afecta a:** `asset-search`.
 
