@@ -11,7 +11,14 @@ Los errores ([ADR-007](ADR-007-error-handling.md)), la idempotencia ([ADR-008](A
 ### Recursos
 
 - Las rutas usan los sustantivos del lenguaje de las specs, en inglés y en plural: `/instruments`, `/orders`.
-- Los filtros de una lista son parámetros de la query sobre el recurso, no rutas aparte. La búsqueda de activos es `GET /instruments?search=<texto>`.
+- Los filtros de una lista son parámetros de la query sobre el recurso, no rutas aparte, y cada uno nombra el campo por el que filtra: `GET /instruments?ticker=<texto>&name=<texto>`. Los filtros presentes se combinan con Y, y sin filtros la respuesta es la colección completa. Un filtro presente pero vacío responde `VALIDATION_ERROR`.
+
+### Orden
+
+- El orden de una lista se elige con el parámetro `sort`, con un catálogo cerrado de valores por recurso, en inglés y en mayúsculas como todo enumerado del contrato (`sort=TICKER`). Cada recurso define su valor por defecto. Un valor fuera del catálogo responde `VALIDATION_ERROR`.
+- El orden es siempre ascendente. Cada valor de `sort` termina con una clave única como último criterio, para que el orden sea total (ver la paginación).
+- En la query, cada valor de `sort` se traduce a un fragmento `ORDER BY` fijo escrito en el adaptador. El texto recibido nunca llega al SQL.
+- Evolución: orden descendente (`sort=-NAME`) o varios criterios combinados, si un cliente lo necesita.
 
 ### Nombres de los campos
 

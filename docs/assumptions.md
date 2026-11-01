@@ -129,9 +129,13 @@ Como datos complementarios se exponen el **resultado realizado** (`(precio de ve
 
 **Estado:** decisión de diseño.
 
-**Decisión:** la búsqueda encuentra instrumentos cuyo ticker o nombre contengan el texto buscado, sin distinguir mayúsculas ni tildes. Los pesos (instrumento de tipo `CURRENCY`) no aparecen en los resultados, porque no son un activo sobre el que se pueda operar. Los resultados se ordenan por relevancia: primero el ticker que coincide exactamente, después los tickers que empiezan con el texto y después el resto, cada grupo por ticker en orden alfabético.
+**Decisión:** el enunciado pide "búsqueda por ticker y/o por nombre". Se interpreta como dos filtros explícitos que el usuario elige: por ticker, por nombre o por los dos. Cada filtro busca solo en su campo los instrumentos que contengan el texto, sin distinguir mayúsculas ni tildes. Con los dos filtros, el resultado tiene los instrumentos que cumplen ambos. Sin filtros, el resultado es el catálogo completo. Así el usuario sabe siempre por qué concepto se filtró. Un único texto que busque en los dos campos lo ocultaría.
 
-El texto se busca sin los espacios del principio y del final, y como texto literal: un carácter como `%` o `_` no actúa como comodín. Los resultados se entregan paginados, de a 20 por defecto, informando si hay más resultados.
+Los pesos (instrumento de tipo `CURRENCY`) no aparecen nunca en los resultados, porque no son un activo sobre el que se pueda operar.
+
+El usuario elige el orden: por ticker (el valor por defecto) o por nombre, siempre alfabético. Los empates se ordenan por ticker. No hay orden por relevancia: con filtros explícitos, el usuario ya sabe por qué campo coincidió cada resultado, y un orden alfabético es predecible y paginable sin calcular la cercanía al texto.
+
+El texto de cada filtro se busca sin los espacios del principio y del final, y como texto literal: un carácter como `%` o `_` no actúa como comodín. Un filtro presente pero vacío es un error. Los resultados se entregan paginados, de a 20 por defecto, informando si hay más resultados.
 
 **Afecta a:** `asset-search`.
 

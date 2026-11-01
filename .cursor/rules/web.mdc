@@ -25,7 +25,8 @@ Referencias: [ADR-007](../../docs/decisions/ADR-007-error-handling.md), [ADR-010
 
 ## Recursos, campos y listas
 
-- Rutas con los sustantivos de las specs, en inglés y en plural (`/instruments`, `/orders`). Los filtros son parámetros de la query (`GET /instruments?search=`).
+- Rutas con los sustantivos de las specs, en inglés y en plural (`/instruments`, `/orders`). Los filtros son parámetros de la query con el nombre del campo (`GET /instruments?ticker=&name=`), opcionales y combinados con Y. Un filtro presente pero vacío es `VALIDATION_ERROR`.
+- El orden se elige con `sort`, como un enum cerrado en mayúsculas (`TICKER`, `NAME`; por defecto `TICKER`). Un valor desconocido es `VALIDATION_ERROR`.
 - Campos del JSON y parámetros en snake_case, con la estrategia `SNAKE_CASE` de Jackson configurada una vez para toda la aplicación. Nada de `@JsonProperty` por campo.
 - Una lista se responde como objeto (`{"instruments": [...], "page": {...}}`), nunca como array en la raíz.
 - Paginación con `page` (desde 0) y `size` (por defecto 20, entre 1 y 100). La respuesta informa `page.number`, `page.size` y `page.has_next`, nunca el total.
