@@ -14,7 +14,7 @@ class InstrumentSearchCriteriaTest {
 
         assertThat(criteria.ticker()).isEmpty();
         assertThat(criteria.name()).isEmpty();
-        assertThat(criteria.sort()).isEqualTo(InstrumentSort.RELEVANCE);
+        assertThat(criteria.sort()).isEqualTo(InstrumentSort.TICKER);
     }
 
     @Test

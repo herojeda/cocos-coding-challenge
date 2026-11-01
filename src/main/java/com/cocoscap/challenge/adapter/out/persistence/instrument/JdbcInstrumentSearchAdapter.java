@@ -14,8 +14,8 @@ import java.util.Map;
 import org.springframework.jdbc.core.simple.JdbcClient;
 
 /**
- * Accent-insensitive instrument search excluding CURRENCY. Builds WHERE/ORDER BY from fixed
- * fragments that carry their own bind parameters; uses size+1 for hasNext.
+ * Accent-insensitive instrument search excluding CURRENCY. Builds WHERE from fixed fragments that
+ * carry their bind parameters; ORDER BY is a fixed fragment per {@code InstrumentSort}.
  */
 public class JdbcInstrumentSearchAdapter implements InstrumentSearchPort {
 
@@ -28,7 +28,6 @@ public class JdbcInstrumentSearchAdapter implements InstrumentSearchPort {
     @Override
     public Page<Instrument> search(InstrumentSearchCriteria criteria, Pagination pagination) {
         SqlFragment where = where(criteria);
-        SqlFragment orderBy = orderBy(criteria);
         String sql =
                 """
                 SELECT i.id, i.ticker, i.name, i.type
@@ -37,12 +36,11 @@ public class JdbcInstrumentSearchAdapter implements InstrumentSearchPort {
                 %s
                 LIMIT :limit OFFSET :offset
                 """
-                        .formatted(where.sql(), orderBy.sql());
+                        .formatted(where.sql(), orderBy(criteria));
 
         List<InstrumentRow> rows = jdbcClient
                 .sql(sql)
                 .params(where.params())
-                .params(orderBy.params())
                 .param("limit", pagination.size() + 1)
                 .param("offset", pagination.offset())
                 .query(InstrumentRow.class)
@@ -72,58 +70,15 @@ public class JdbcInstrumentSearchAdapter implements InstrumentSearchPort {
         return new SqlFragment(clause.toString(), Map.copyOf(params));
     }
 
-    private static SqlFragment orderBy(InstrumentSearchCriteria criteria) {
+    private static String orderBy(InstrumentSearchCriteria criteria) {
         return switch (criteria.sort()) {
-            case RELEVANCE -> relevanceOrder(criteria);
-            case TICKER -> new SqlFragment("ORDER BY i.ticker", Map.of());
-            case NAME -> new SqlFragment("ORDER BY unaccent(lower(i.name)), i.ticker", Map.of());
+            case TICKER -> "ORDER BY i.ticker";
+            case NAME -> "ORDER BY unaccent(lower(i.name)), i.ticker";
         };
-    }
-
-    private static SqlFragment relevanceOrder(InstrumentSearchCriteria criteria) {
-        if (criteria.ticker().isPresent()) {
-            InstrumentSearchText text = criteria.ticker().orElseThrow();
-            return new SqlFragment(
-                    """
-                    ORDER BY
-                      CASE
-                        WHEN unaccent(lower(i.ticker)) = unaccent(lower(:tickerExact)) THEN 0
-                        WHEN unaccent(lower(i.ticker)) LIKE unaccent(lower(:tickerPrefix)) ESCAPE '\\'
-                          THEN 1
-                        ELSE 2
-                      END,
-                      i.ticker
-                    """,
-                    Map.of(
-                            "tickerExact", text.value(),
-                            "tickerPrefix", prefixPattern(text)));
-        }
-        if (criteria.name().isPresent()) {
-            InstrumentSearchText text = criteria.name().orElseThrow();
-            return new SqlFragment(
-                    """
-                    ORDER BY
-                      CASE
-                        WHEN unaccent(lower(i.name)) = unaccent(lower(:nameExact)) THEN 0
-                        WHEN unaccent(lower(i.name)) LIKE unaccent(lower(:namePrefix)) ESCAPE '\\'
-                          THEN 1
-                        ELSE 2
-                      END,
-                      i.ticker
-                    """,
-                    Map.of(
-                            "nameExact", text.value(),
-                            "namePrefix", prefixPattern(text)));
-        }
-        return new SqlFragment("ORDER BY i.ticker", Map.of());
     }
 
     private static String containsPattern(InstrumentSearchText text) {
         return "%" + escapeLikeMetacharacters(text.value()) + "%";
-    }
-
-    private static String prefixPattern(InstrumentSearchText text) {
-        return escapeLikeMetacharacters(text.value()) + "%";
     }
 
     static String escapeLikeMetacharacters(String text) {

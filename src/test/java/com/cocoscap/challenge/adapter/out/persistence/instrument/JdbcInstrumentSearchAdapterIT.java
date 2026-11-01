@@ -10,6 +10,7 @@ import com.cocoscap.challenge.domain.instrument.Instrument;
 import com.cocoscap.challenge.domain.instrument.InstrumentSearchCriteria;
 import com.cocoscap.challenge.domain.instrument.InstrumentSearchText;
 import com.cocoscap.challenge.domain.instrument.InstrumentSort;
+import com.cocoscap.challenge.domain.instrument.InstrumentType;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -21,8 +22,6 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.jdbc.core.simple.JdbcClient;
-import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest
 @Import(PostgresTestcontainersConfiguration.class)
@@ -30,9 +29,6 @@ class JdbcInstrumentSearchAdapterIT {
 
     @Autowired
     private SearchInstrumentsUseCase searchInstruments;
-
-    @Autowired
-    private JdbcClient jdbcClient;
 
     @Test
     @DisplayName("AS-01 · Filtro por ticker exacto")
@@ -79,19 +75,9 @@ class JdbcInstrumentSearchAdapterIT {
         assertThat(byTicker("YPFD").items()).singleElement().satisfies(i -> {
             assertThat(i.ticker()).isEqualTo("YPFD");
             assertThat(i.name()).isEqualTo("Y.P.F. S.A.");
-            assertThat(i.type().name()).isEqualTo("STOCK");
+            assertThat(i.type()).isEqualTo(InstrumentType.STOCK);
             assertThat(i.id().value()).isPositive();
         });
-    }
-
-    @Test
-    @Transactional
-    @DisplayName("AS-07 · Relevancia sobre el ticker")
-    void as07() {
-        jdbcClient
-                .sql("INSERT INTO instruments (ticker, name, type) VALUES ('PAT', 'Pat Test', 'STOCK')")
-                .update();
-        assertThat(tickers(byTicker("pat"))).containsExactly("PAT", "PATA", "BPAT");
     }
 
     @Test
@@ -181,7 +167,7 @@ class JdbcInstrumentSearchAdapterIT {
         var criteria = new InstrumentSearchCriteria(
                 Optional.of(new InstrumentSearchText("mol")),
                 Optional.of(new InstrumentSearchText("molinos")),
-                InstrumentSort.RELEVANCE);
+                InstrumentSort.TICKER);
         assertThat(tickers(search(criteria, page(0, 20)))).containsExactly("MOLA", "MOLI");
     }
 
@@ -195,17 +181,13 @@ class JdbcInstrumentSearchAdapterIT {
     }
 
     @Test
-    @DisplayName("AS-21 · Relevancia sobre el nombre")
-    void as21() {
-        assertThat(tickers(byName("gas"))).containsExactly("GBAN", "CGPA2", "DGCU2", "METR", "TGNO4", "TGSU2");
-    }
-
-    @Test
     @DisplayName("AS-22 · Orden por ticker")
     void as22() {
-        var criteria = new InstrumentSearchCriteria(
+        List<String> expected = List.of("GCLA", "GGAL", "OEST", "SUPV");
+        assertThat(tickers(byName("grupo"))).containsExactlyElementsOf(expected);
+        var withTicker = new InstrumentSearchCriteria(
                 Optional.empty(), Optional.of(new InstrumentSearchText("grupo")), InstrumentSort.TICKER);
-        assertThat(tickers(search(criteria, page(0, 20)))).containsExactly("GCLA", "GGAL", "OEST", "SUPV");
+        assertThat(tickers(search(withTicker, page(0, 20)))).containsExactlyElementsOf(expected);
     }
 
     @Test
@@ -231,12 +213,12 @@ class JdbcInstrumentSearchAdapterIT {
 
     private static InstrumentSearchCriteria ticker(String value) {
         return new InstrumentSearchCriteria(
-                Optional.of(new InstrumentSearchText(value)), Optional.empty(), InstrumentSort.RELEVANCE);
+                Optional.of(new InstrumentSearchText(value)), Optional.empty(), InstrumentSort.TICKER);
     }
 
     private static InstrumentSearchCriteria name(String value) {
         return new InstrumentSearchCriteria(
-                Optional.empty(), Optional.of(new InstrumentSearchText(value)), InstrumentSort.RELEVANCE);
+                Optional.empty(), Optional.of(new InstrumentSearchText(value)), InstrumentSort.TICKER);
     }
 
     private static Pagination page(int number, int size) {

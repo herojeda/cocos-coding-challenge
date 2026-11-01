@@ -22,6 +22,6 @@ public record InstrumentSearchCriteria(
     }
 
     public static InstrumentSearchCriteria unfiltered() {
-        return new InstrumentSearchCriteria(Optional.empty(), Optional.empty(), InstrumentSort.RELEVANCE);
+        return new InstrumentSearchCriteria(Optional.empty(), Optional.empty(), InstrumentSort.TICKER);
     }
 }
