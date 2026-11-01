@@ -1,5 +1,6 @@
 package com.cocoscap.challenge.domain.account;
 
+import com.cocoscap.challenge.domain.costbasis.CostBasisCalculator;
 import com.cocoscap.challenge.domain.instrument.InstrumentId;
 import com.cocoscap.challenge.domain.order.OrderType;
 import java.math.BigDecimal;

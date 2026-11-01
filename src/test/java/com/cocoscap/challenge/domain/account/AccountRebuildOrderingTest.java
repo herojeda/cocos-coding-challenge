@@ -2,6 +2,8 @@ package com.cocoscap.challenge.domain.account;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.cocoscap.challenge.domain.costbasis.CostBasisCalculator;
+import com.cocoscap.challenge.domain.costbasis.WeightedAverageCostBasisCalculator;
 import com.cocoscap.challenge.domain.instrument.InstrumentId;
 import com.cocoscap.challenge.domain.order.OrderId;
 import com.cocoscap.challenge.domain.order.OrderSide;

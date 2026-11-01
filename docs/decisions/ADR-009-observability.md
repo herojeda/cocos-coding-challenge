@@ -40,7 +40,7 @@ Se usa **`spring-boot-starter-opentelemetry`**, el starter de Spring Boot 4 que 
 
 ### Métricas de negocio detrás de un puerto
 
-Los casos de uso informan los hechos de negocio a través de un puerto de salida, **`TradingMetrics`**, definido en `application` (por ejemplo, `orderProcessed(type, side, status, rejectionReason)`). Su implementación con Micrometer vive en un adaptador nuevo, `adapter/out/observability`. El caso de uso no sabe que existe Micrometer, las reglas de ArchUnit de ADR-003 no cambian, y en los tests el puerto se reemplaza por un doble que registra las llamadas.
+Los casos de uso informan los hechos de negocio a través de un puerto de salida, **`TradingMetricsPort`**, definido en `application` (por ejemplo, `orderProcessed(type, side, status, rejectionReason)`). Su implementación con Micrometer vive en un adaptador nuevo, `adapter/out/observability`. El caso de uso no sabe que existe Micrometer, las reglas de ArchUnit de ADR-003 no cambian, y en los tests el puerto se reemplaza por un doble que registra las llamadas.
 
 La espera del lock se mide en el adaptador de persistencia, que es el que ejecuta el `SELECT ... FOR UPDATE`.
 

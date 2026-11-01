@@ -8,6 +8,14 @@ alwaysApply: false
 
 Referencias: [ADR-002](../../docs/decisions/ADR-002-data-access.md), [ADR-004](../../docs/decisions/ADR-004-schema-and-migrations.md), [ADR-006](../../docs/decisions/ADR-006-concurrency.md).
 
+## Paquetes
+
+- Un subpaquete por concepto (`adapter/out/persistence/instrument/`), con el adaptador y los records de sus filas.
+
+## Nombres
+
+- Adaptadores: `Jdbc<Puerto sin Port>Adapter` (`JdbcInstrumentSearchAdapter` implementa `InstrumentSearchPort`). Filas: `*Row` (`InstrumentRow`), que nunca salen del paquete de persistencia.
+
 ## Acceso a datos
 
 - Solo `JdbcClient`. Nada de JPA, Spring Data, `JdbcTemplate` directo ni jOOQ.

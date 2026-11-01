@@ -23,4 +23,15 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule domainAndApplicationDoNotDependOnAdaptersOrConfig =
             HexagonalArchitectureRules.DOMAIN_AND_APPLICATION_DO_NOT_DEPEND_ON_ADAPTERS_OR_CONFIG;
+
+    @ArchTest
+    static final ArchRule domainSubpackagesAreFreeOfCycles =
+            HexagonalArchitectureRules.DOMAIN_SUBPACKAGES_ARE_FREE_OF_CYCLES;
+
+    @ArchTest
+    static final ArchRule domainTypesHaveNoStereotypeSuffix =
+            HexagonalArchitectureRules.DOMAIN_TYPES_HAVE_NO_STEREOTYPE_SUFFIX;
+
+    @ArchTest
+    static final ArchRule roleSuffixesLiveInTheirLayer = HexagonalArchitectureRules.ROLE_SUFFIXES_LIVE_IN_THEIR_LAYER;
 }
