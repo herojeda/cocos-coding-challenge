@@ -76,6 +76,7 @@ ArchUnit verifica que cada sufijo viva en su capa:
 - Las `*Controller`, `*Request` y `*Response` están en `adapter/in/web`.
 - Las `Jdbc*Adapter` y `*Row` están en `adapter/out/persistence`.
 - Las `*Config` están en `config`.
+- En sentido inverso: toda clase con `@Configuration` en `config` termina en `Config`, todo `@RestController` en web termina en `Controller`, y toda clase de persistencia que implementa un puerto de `application` se llama `Jdbc*Adapter`.
 - Ningún tipo de `domain` termina en `Domain`, `Entity`, `VO`, `UseCase`, `Port`, `Adapter`, `Row`, `Request` ni `Response`.
 
 ### Excepción explícita: `@Transactional` en `application`
