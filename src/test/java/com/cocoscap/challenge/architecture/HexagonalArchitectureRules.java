@@ -4,6 +4,7 @@ import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyP
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 
 import com.tngtech.archunit.base.DescribedPredicate;
 import com.tngtech.archunit.core.domain.JavaClass;
@@ -77,6 +78,54 @@ public final class HexagonalArchitectureRules {
             .resideInAnyPackage("..adapter..", "..config..")
             .because("ADR-003: domain and application must not depend on adapters or config")
             .allowEmptyShould(true);
+
+    public static final ArchRule DOMAIN_SUBPACKAGES_ARE_FREE_OF_CYCLES = slices()
+            .matching("..domain.(*)..")
+            .should()
+            .beFreeOfCycles()
+            .because("ADR-003: a concept with its own API never depends on the aggregate that uses it")
+            .allowEmptyShould(true);
+
+    public static final ArchRule DOMAIN_TYPES_HAVE_NO_STEREOTYPE_SUFFIX = noClasses()
+            .that()
+            .resideInAPackage("..domain..")
+            .should()
+            .haveSimpleNameEndingWith("Domain")
+            .orShould().haveSimpleNameEndingWith("Entity")
+            .orShould().haveSimpleNameEndingWith("VO")
+            .orShould().haveSimpleNameEndingWith("UseCase")
+            .orShould().haveSimpleNameEndingWith("Port")
+            .orShould().haveSimpleNameEndingWith("Adapter")
+            .orShould().haveSimpleNameEndingWith("Row")
+            .orShould().haveSimpleNameEndingWith("Request")
+            .orShould().haveSimpleNameEndingWith("Response")
+            .because("ADR-003: domain classes are named with the business term, without stereotype suffixes")
+            .allowEmptyShould(true);
+
+    public static final ArchRule ROLE_SUFFIXES_LIVE_IN_THEIR_LAYER = CompositeArchRule.of(List.of(
+                    suffixResidesIn("UseCase", "..application.."),
+                    suffixResidesIn("Port", "..application.."),
+                    classes().that().haveSimpleNameEndingWith("Port").should().beInterfaces()
+                            .allowEmptyShould(true),
+                    suffixResidesIn("Controller", "..adapter.in.web.."),
+                    suffixResidesIn("Request", "..adapter.in.web.."),
+                    suffixResidesIn("Response", "..adapter.in.web.."),
+                    suffixResidesIn("Row", "..adapter.out.persistence.."),
+                    classes().that().haveSimpleNameStartingWith("Jdbc").and().haveSimpleNameEndingWith("Adapter")
+                            .should().resideInAPackage("..adapter.out.persistence..")
+                            .allowEmptyShould(true),
+                    suffixResidesIn("Config", "..config..")))
+            .because("ADR-003: the suffix states the architectural role, so it must match the layer")
+            .allowEmptyShould(true);
+
+    private static ArchRule suffixResidesIn(String suffix, String packageIdentifier) {
+        return classes()
+                .that()
+                .haveSimpleNameEndingWith(suffix)
+                .should()
+                .resideInAPackage(packageIdentifier)
+                .allowEmptyShould(true);
+    }
 
     private static ArchRule noAdapterDependency(String fromPackage, String... forbiddenPackages) {
         return noClasses()

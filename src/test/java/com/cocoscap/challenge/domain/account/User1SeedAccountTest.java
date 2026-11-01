@@ -2,6 +2,8 @@ package com.cocoscap.challenge.domain.account;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.cocoscap.challenge.domain.costbasis.CostBasisCalculator;
+import com.cocoscap.challenge.domain.costbasis.WeightedAverageCostBasisCalculator;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
