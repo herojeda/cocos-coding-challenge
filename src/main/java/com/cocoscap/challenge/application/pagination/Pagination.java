@@ -1,14 +1,12 @@
-package com.cocoscap.challenge.application.paging;
+package com.cocoscap.challenge.application.pagination;
 
-/**
- * Offset page request. {@code page} is zero-based; {@code size} is between 1 and 100.
- */
-public record PageRequest(int page, int size) {
+/** Zero-based offset pagination; {@code size} is between 1 and 100. */
+public record Pagination(int page, int size) {
 
     public static final int DEFAULT_SIZE = 20;
     public static final int MAX_SIZE = 100;
 
-    public PageRequest {
+    public Pagination {
         if (page < 0) {
             throw new IllegalArgumentException("page must be greater than or equal to 0");
         }
@@ -17,7 +15,7 @@ public record PageRequest(int page, int size) {
         }
     }
 
-    public int offset() {
-        return page * size;
+    public long offset() {
+        return Math.multiplyExact((long) page, size);
     }
 }

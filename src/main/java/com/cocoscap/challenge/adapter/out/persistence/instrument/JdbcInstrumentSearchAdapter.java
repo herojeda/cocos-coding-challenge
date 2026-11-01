@@ -1,8 +1,8 @@
 package com.cocoscap.challenge.adapter.out.persistence.instrument;
 
 import com.cocoscap.challenge.application.instrument.InstrumentSearchPort;
-import com.cocoscap.challenge.application.paging.Page;
-import com.cocoscap.challenge.application.paging.PageRequest;
+import com.cocoscap.challenge.application.pagination.Page;
+import com.cocoscap.challenge.application.pagination.Pagination;
 import com.cocoscap.challenge.domain.instrument.Instrument;
 import com.cocoscap.challenge.domain.instrument.InstrumentId;
 import com.cocoscap.challenge.domain.instrument.InstrumentSearchText;
@@ -11,7 +11,7 @@ import java.util.List;
 import org.springframework.jdbc.core.simple.JdbcClient;
 
 /** Accent-insensitive instrument search excluding CURRENCY; uses size+1 for hasNext. */
-public class InstrumentSearchJdbcAdapter implements InstrumentSearchPort {
+public class JdbcInstrumentSearchAdapter implements InstrumentSearchPort {
 
     private static final String SEARCH_SQL =
             """
@@ -35,29 +35,29 @@ public class InstrumentSearchJdbcAdapter implements InstrumentSearchPort {
 
     private final JdbcClient jdbcClient;
 
-    public InstrumentSearchJdbcAdapter(JdbcClient jdbcClient) {
+    public JdbcInstrumentSearchAdapter(JdbcClient jdbcClient) {
         this.jdbcClient = jdbcClient;
     }
 
     @Override
-    public Page<Instrument> search(InstrumentSearchText text, PageRequest pageRequest) {
+    public Page<Instrument> search(InstrumentSearchText text, Pagination pagination) {
         String escaped = escapeLikeMetacharacters(text.value());
         List<InstrumentRow> rows = jdbcClient
                 .sql(SEARCH_SQL)
                 .param("containsPattern", "%" + escaped + "%")
                 .param("prefixPattern", escaped + "%")
                 .param("exactText", text.value())
-                .param("limit", pageRequest.size() + 1)
-                .param("offset", pageRequest.offset())
+                .param("limit", pagination.size() + 1)
+                .param("offset", pagination.offset())
                 .query(InstrumentRow.class)
                 .list();
 
-        boolean hasNext = rows.size() > pageRequest.size();
+        boolean hasNext = rows.size() > pagination.size();
         List<Instrument> items = rows.stream()
-                .limit(pageRequest.size())
-                .map(InstrumentSearchJdbcAdapter::toDomain)
+                .limit(pagination.size())
+                .map(JdbcInstrumentSearchAdapter::toDomain)
                 .toList();
-        return new Page<>(items, pageRequest.page(), pageRequest.size(), hasNext);
+        return new Page<>(items, pagination.page(), pagination.size(), hasNext);
     }
 
     static String escapeLikeMetacharacters(String text) {

@@ -3,9 +3,9 @@ package com.cocoscap.challenge.adapter.out.persistence.instrument;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.cocoscap.challenge.PostgresTestcontainersConfiguration;
-import com.cocoscap.challenge.application.instrument.SearchInstruments;
-import com.cocoscap.challenge.application.paging.Page;
-import com.cocoscap.challenge.application.paging.PageRequest;
+import com.cocoscap.challenge.application.instrument.SearchInstrumentsUseCase;
+import com.cocoscap.challenge.application.pagination.Page;
+import com.cocoscap.challenge.application.pagination.Pagination;
 import com.cocoscap.challenge.domain.instrument.Instrument;
 import com.cocoscap.challenge.domain.instrument.InstrumentSearchText;
 import java.util.List;
@@ -17,10 +17,10 @@ import org.springframework.context.annotation.Import;
 
 @SpringBootTest
 @Import(PostgresTestcontainersConfiguration.class)
-class InstrumentSearchJdbcAdapterIT {
+class JdbcInstrumentSearchAdapterIT {
 
     @Autowired
-    private SearchInstruments searchInstruments;
+    private SearchInstrumentsUseCase searchInstruments;
 
     @Test
     @DisplayName("AS-01 · Búsqueda por ticker exacto")
@@ -78,7 +78,7 @@ class InstrumentSearchJdbcAdapterIT {
     @DisplayName("AS-10 · Texto con espacios alrededor")
     void as10_trimmedText() {
         assertThat(tickers(searchInstruments.execute(
-                        new InstrumentSearchText("  moli  "), new PageRequest(0, PageRequest.DEFAULT_SIZE))))
+                        new InstrumentSearchText("  moli  "), new Pagination(0, Pagination.DEFAULT_SIZE))))
                 .containsExactly("MOLI", "MOLA", "SEMI");
     }
 
@@ -89,8 +89,42 @@ class InstrumentSearchJdbcAdapterIT {
         assertThat(search("_").items()).isEmpty();
     }
 
+    @Test
+    @DisplayName("AS-13 · Páginas siguientes")
+    void as13_followingPages() {
+        Page<Instrument> first =
+                searchInstruments.execute(new InstrumentSearchText("banco"), new Pagination(0, 2));
+        Page<Instrument> second =
+                searchInstruments.execute(new InstrumentSearchText("banco"), new Pagination(1, 2));
+
+        assertThat(tickers(first)).containsExactly("BBAR", "BHIP");
+        assertThat(first.hasNext()).isTrue();
+        assertThat(tickers(second)).containsExactly("BMA", "BPAT");
+        assertThat(second.hasNext()).isFalse();
+    }
+
+    @Test
+    @DisplayName("AS-14 · Página posterior a la última")
+    void as14_pastLastPage() {
+        Page<Instrument> page =
+                searchInstruments.execute(new InstrumentSearchText("banco"), new Pagination(2, 2));
+
+        assertThat(page.items()).isEmpty();
+        assertThat(page.hasNext()).isFalse();
+    }
+
+    @Test
+    @DisplayName("AS-14 · Página con offset que desborda int")
+    void as14_largePageOffsetDoesNotFail() {
+        Page<Instrument> page = searchInstruments.execute(
+                new InstrumentSearchText("banco"), new Pagination(Integer.MAX_VALUE, 100));
+
+        assertThat(page.items()).isEmpty();
+        assertThat(page.hasNext()).isFalse();
+    }
+
     private Page<Instrument> search(String text) {
-        return searchInstruments.execute(new InstrumentSearchText(text), new PageRequest(0, PageRequest.DEFAULT_SIZE));
+        return searchInstruments.execute(new InstrumentSearchText(text), new Pagination(0, Pagination.DEFAULT_SIZE));
     }
 
     private static List<String> tickers(Page<Instrument> page) {
