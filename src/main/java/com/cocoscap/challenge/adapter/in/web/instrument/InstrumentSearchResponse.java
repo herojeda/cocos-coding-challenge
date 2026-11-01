@@ -12,16 +12,16 @@ record InstrumentSearchResponse(List<InstrumentItemResponse> instruments, PageIn
         return new InstrumentSearchResponse(
                 items, new PageInfoResponse(result.number(), result.size(), result.hasNext()));
     }
-}
 
-record InstrumentItemResponse(long id, String ticker, String name, String type) {
+    record InstrumentItemResponse(long id, String ticker, String name, String type) {
 
-    static InstrumentItemResponse from(Instrument instrument) {
-        return new InstrumentItemResponse(
-                instrument.id().value(),
-                instrument.ticker(),
-                instrument.name(),
-                instrument.type().name());
+        static InstrumentItemResponse from(Instrument instrument) {
+            return new InstrumentItemResponse(
+                    instrument.id().value(),
+                    instrument.ticker(),
+                    instrument.name(),
+                    instrument.type().name());
+        }
     }
 }
 

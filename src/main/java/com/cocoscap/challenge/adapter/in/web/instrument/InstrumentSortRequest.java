@@ -8,6 +8,9 @@ enum InstrumentSortRequest {
     NAME;
 
     InstrumentSort toDomain() {
-        return InstrumentSort.valueOf(name());
+        return switch (this) {
+            case TICKER -> InstrumentSort.TICKER;
+            case NAME -> InstrumentSort.NAME;
+        };
     }
 }
