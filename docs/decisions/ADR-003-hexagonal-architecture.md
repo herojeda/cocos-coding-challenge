@@ -14,8 +14,8 @@ Arquitectura hexagonal en **un solo módulo de Gradle**, separada por paquetes:
 com.cocoscap.challenge
   domain/                 sin Spring ni JDBC: Order y su máquina de estados, Account,
                           Position, OrderPlacementPolicy, CostBasisCalculator, dinero
-  application/            casos de uso (PlaceOrder, CancelOrder, GetPortfolio,
-                          SearchAssets) y los puertos que necesitan
+  application/            casos de uso (PlaceOrderUseCase, CancelOrderUseCase,
+                          GetPortfolioUseCase, SearchInstrumentsUseCase) y sus puertos
   adapter/in/web/         controllers, DTOs del contrato, Problem Details
   adapter/out/persistence/ implementación de los puertos con JdbcClient
   adapter/out/observability/ implementación del puerto de métricas con Micrometer (ADR-009)
@@ -42,7 +42,7 @@ domain/
   order/                   Order, OrderId, enumerados, OrderPlacementPolicy,
                            motivo de rechazo, excepciones de la orden
   instrument/              Instrument, InstrumentId, InstrumentType
-application/<concepto>/    casos de uso y sus puertos (instrument/SearchInstruments)
+application/<concepto>/    casos de uso y sus puertos (instrument/SearchInstrumentsUseCase)
 adapter/in/web/<concepto>/ controllers y DTOs (error/ queda para Problem Details)
 adapter/out/persistence/<concepto>/ adaptadores con JdbcClient y sus filas
 ```
@@ -52,6 +52,31 @@ adapter/out/persistence/<concepto>/ adaptadores con JdbcClient y sus filas
 - **No se agrupa por tipo de clase** (`entity/`, `valueobject/`, `service/`). Separaría un agregado de sus entidades internas y obligaría a hacer públicos sus mutadores, y dispersaría un mismo concepto en varias carpetas. El rol de cada clase se lee en su nombre y su forma: `*Id` y los `record` son value objects, `*Policy` y `*Calculator` son servicios de dominio, y `*Exception` son excepciones.
 - **Un tipo que comparten varios conceptos** va en un paquete con el nombre de lo que es, como `application/pagination/`. Nunca en `common`, `shared` ni `util`.
 - **Cuando un paquete supera unas diez clases,** se busca un subconcepto con responsabilidad propia para separarlo. Nunca se parte por tipo de clase.
+
+### Nombres por rol
+
+**El dominio no lleva sufijos de estereotipo.** El nombre de una clase de dominio es el término del negocio que usan las specs (`Account`, `Position`, `Order`), para que el código se lea con el mismo lenguaje. Agregar `Domain`, `Entity` o `VO` repetiría lo que ya dice la forma de la clase (un `record` es un value object, una clase con identidad es una entidad), y obligaría a renombrar si un concepto cambia de rol. Los nombres que ya expresan un concepto se mantienen: `*Id`, `*Policy`, `*Calculator` y `*Exception`.
+
+**Fuera del dominio, el sufijo dice el rol en la arquitectura.** Las clases de las otras capas son piezas técnicas, no lenguaje del negocio, y un mismo concepto tiene varias representaciones (la fila, el DTO, el objeto de dominio). El sufijo las distingue sin tocar el nombre del dominio:
+
+| Capa | Sufijo | Ejemplo |
+|---|---|---|
+| `application` | `*UseCase` | `SearchInstrumentsUseCase`, `PlaceOrderUseCase` |
+| `application` (puertos de salida) | `*Port` | `InstrumentSearchPort`, `TradingMetricsPort` |
+| `adapter/in/web` | `*Controller`, `*Request`, `*Response` | `InstrumentController`, `InstrumentSearchResponse` |
+| `adapter/out/persistence` | `Jdbc*Adapter`, `*Row` | `JdbcInstrumentSearchAdapter`, `InstrumentRow` |
+| `adapter/out/observability` | `Micrometer*Adapter` | `MicrometerTradingMetricsAdapter` |
+| `config` | `*Config` | `InstrumentConfig` |
+
+Los records que solo existen dentro de una clase (por ejemplo, un parámetro agrupado de una query) no necesitan sufijo. Las clases de soporte que no cumplen ninguno de estos roles, como las de `adapter/in/web/error/`, llevan el nombre de lo que hacen (`ApiExceptionHandler`, `NosniffHeaderFilter`).
+
+ArchUnit verifica que cada sufijo viva en su capa:
+
+- Las clases `*UseCase` y `*Port` están en `application`, y los `*Port` son interfaces.
+- Las `*Controller`, `*Request` y `*Response` están en `adapter/in/web`.
+- Las `Jdbc*Adapter` y `*Row` están en `adapter/out/persistence`.
+- Las `*Config` están en `config`.
+- Ningún tipo de `domain` termina en `Domain`, `Entity`, `VO`, `UseCase`, `Port`, `Adapter`, `Row`, `Request` ni `Response`.
 
 ### Excepción explícita: `@Transactional` en `application`
 

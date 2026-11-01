@@ -22,6 +22,10 @@ Referencias: [ADR-003](../../docs/decisions/ADR-003-hexagonal-architecture.md), 
 - Sin ciclos entre subpaquetes: un concepto con API propia nunca depende del agregado que lo usa. ArchUnit lo verifica.
 - Si un paquete supera unas diez clases, buscá un subconcepto para separar y proponelo en el plan.
 
+## Nombres
+
+- Sin sufijos de estereotipo: nada de `Domain`, `Entity`, `VO` ni `Model`. El nombre es el término del negocio de las specs (`Account`, `Position`). El rol se lee en la forma de la clase y en los nombres que ya son del concepto (`*Id`, `*Policy`, `*Calculator`, `*Exception`). ArchUnit lo verifica.
+
 ## Modelado
 
 - Objetos de valor como `record`, con las validaciones en el constructor compacto.

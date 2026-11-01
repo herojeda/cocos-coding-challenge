@@ -10,13 +10,18 @@ Referencias: [ADR-003](../../docs/decisions/ADR-003-hexagonal-architecture.md), 
 
 ## Paquetes
 
-- Un subpaquete por concepto, con los nombres del dominio (`application/instrument/SearchInstruments`). El caso de uso y sus puertos viven juntos.
+- Un subpaquete por concepto, con los nombres del dominio (`application/instrument/SearchInstrumentsUseCase`). El caso de uso y sus puertos viven juntos.
 - Un tipo que usan varios conceptos va en un paquete con el nombre de lo que es (`application/pagination/`), nunca en `common`, `shared` ni `util`.
+
+## Nombres
+
+- Casos de uso: `<Verbo><Objeto>UseCase` (`SearchInstrumentsUseCase`, `PlaceOrderUseCase`).
+- Puertos de salida: interfaces `*Port` con el nombre de lo que proveen (`InstrumentSearchPort`, `AccountStorePort`, `TradingMetricsPort`).
 
 ## Dependencias
 
 - Solo `domain` y los puertos definidos en `application`. Los puertos son interfaces que viven acá; los adaptadores los implementan.
-- Las métricas de negocio se informan a través del puerto `TradingMetrics` ([ADR-009](../../docs/decisions/ADR-009-observability.md)); nunca con Micrometer directo.
+- Las métricas de negocio se informan a través del puerto `TradingMetricsPort` ([ADR-009](../../docs/decisions/ADR-009-observability.md)); nunca con Micrometer directo.
 - La única anotación de Spring permitida es `org.springframework.transaction.annotation.Transactional`. Nada de `@Service`, `@Component` ni `@Autowired`: los casos de uso se registran como beans en `config`.
 
 ## Casos de uso que escriben (envío y cancelación de órdenes)
