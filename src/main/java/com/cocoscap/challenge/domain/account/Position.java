@@ -1,5 +1,7 @@
 package com.cocoscap.challenge.domain.account;
 
+import com.cocoscap.challenge.domain.costbasis.CostBasisCalculator;
+import com.cocoscap.challenge.domain.costbasis.CostBasisState;
 import com.cocoscap.challenge.domain.instrument.InstrumentId;
 import java.math.BigDecimal;
 import java.util.Objects;

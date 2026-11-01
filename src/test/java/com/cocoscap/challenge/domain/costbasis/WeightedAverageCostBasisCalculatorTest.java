@@ -1,4 +1,4 @@
-package com.cocoscap.challenge.domain.account;
+package com.cocoscap.challenge.domain.costbasis;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

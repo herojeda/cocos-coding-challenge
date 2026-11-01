@@ -1,4 +1,4 @@
-package com.cocoscap.challenge.domain.account;
+package com.cocoscap.challenge.domain.costbasis;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;

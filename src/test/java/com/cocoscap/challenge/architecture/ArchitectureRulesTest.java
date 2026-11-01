@@ -10,8 +10,13 @@ import com.cocoscap.challenge.architecture.fixtures.adapter.out.persistence.Pers
 import com.cocoscap.challenge.architecture.fixtures.application.ApplicationDependingOnAdapter;
 import com.cocoscap.challenge.architecture.fixtures.application.ApplicationUsingService;
 import com.cocoscap.challenge.architecture.fixtures.application.CompliantTransactionalUseCase;
+import com.cocoscap.challenge.architecture.fixtures.application.ConcreteSearchPort;
+import com.cocoscap.challenge.architecture.fixtures.application.MisplacedController;
 import com.cocoscap.challenge.architecture.fixtures.domain.CompliantDomainType;
 import com.cocoscap.challenge.architecture.fixtures.domain.DomainDependingOnSpring;
+import com.cocoscap.challenge.architecture.fixtures.domain.PriceVO;
+import com.cocoscap.challenge.architecture.fixtures.domain.cyclea.CycleA;
+import com.cocoscap.challenge.architecture.fixtures.domain.cycleb.CycleB;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.lang.ArchRule;
@@ -35,6 +40,9 @@ class ArchitectureRulesTest {
                     HexagonalArchitectureRules.ADAPTERS_DO_NOT_DEPEND_ON_EACH_OTHER.check(classes);
                     HexagonalArchitectureRules.DOMAIN_AND_APPLICATION_DO_NOT_DEPEND_ON_ADAPTERS_OR_CONFIG.check(
                             classes);
+                    HexagonalArchitectureRules.DOMAIN_SUBPACKAGES_ARE_FREE_OF_CYCLES.check(classes);
+                    HexagonalArchitectureRules.DOMAIN_TYPES_HAVE_NO_STEREOTYPE_SUFFIX.check(classes);
+                    HexagonalArchitectureRules.ROLE_SUFFIXES_LIVE_IN_THEIR_LAYER.check(classes);
                 })
                 .doesNotThrowAnyException();
     }
@@ -68,7 +76,23 @@ class ArchitectureRulesTest {
                 Arguments.of(
                         "application depending on adapter violates inward dependency rule",
                         HexagonalArchitectureRules.DOMAIN_AND_APPLICATION_DO_NOT_DEPEND_ON_ADAPTERS_OR_CONFIG,
-                        new Class<?>[] {ApplicationDependingOnAdapter.class, PersistenceMarker.class}));
+                        new Class<?>[] {ApplicationDependingOnAdapter.class, PersistenceMarker.class}),
+                Arguments.of(
+                        "domain subpackages depending on each other violate the no-cycles rule",
+                        HexagonalArchitectureRules.DOMAIN_SUBPACKAGES_ARE_FREE_OF_CYCLES,
+                        new Class<?>[] {CycleA.class, CycleB.class}),
+                Arguments.of(
+                        "domain type with a VO suffix violates domain naming",
+                        HexagonalArchitectureRules.DOMAIN_TYPES_HAVE_NO_STEREOTYPE_SUFFIX,
+                        new Class<?>[] {PriceVO.class}),
+                Arguments.of(
+                        "controller outside the web adapter violates role suffixes",
+                        HexagonalArchitectureRules.ROLE_SUFFIXES_LIVE_IN_THEIR_LAYER,
+                        new Class<?>[] {MisplacedController.class}),
+                Arguments.of(
+                        "port that is not an interface violates role suffixes",
+                        HexagonalArchitectureRules.ROLE_SUFFIXES_LIVE_IN_THEIR_LAYER,
+                        new Class<?>[] {ConcreteSearchPort.class}));
     }
 
     private static JavaClasses importClasses(Class<?>... classes) {
