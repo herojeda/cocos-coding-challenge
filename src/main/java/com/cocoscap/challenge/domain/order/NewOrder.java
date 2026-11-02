@@ -28,6 +28,11 @@ public record NewOrder(
     private static final int AMOUNT_MAX_INTEGER_DIGITS = 16;
     /** {@code NUMERIC(10,2)} → at most 8 digits before the decimal. */
     private static final int PRICE_MAX_INTEGER_DIGITS = 8;
+    /**
+     * Maximum share quantity that fits in {@code orders.size} ({@code NUMERIC(18,2)} integer
+     * digits). Shared with size-from-amount in {@link OrderPlacementPolicy}.
+     */
+    public static final long MAX_SIZE = 9_999_999_999_999_999L;
 
     public NewOrder {
         Objects.requireNonNull(userId, "userId");
@@ -45,8 +50,13 @@ public record NewOrder(
             throw new NewOrderValidationException(
                     hasSize ? "amount" : "size", "exactly one of size or amount is required");
         }
-        if (hasSize && size <= 0) {
-            throw new NewOrderValidationException("size", "size must be positive");
+        if (hasSize) {
+            if (size <= 0) {
+                throw new NewOrderValidationException("size", "size must be positive");
+            }
+            if (size > MAX_SIZE) {
+                throw new NewOrderValidationException("size", "size is out of range");
+            }
         }
         if (hasAmount) {
             amount = requireMoney("amount", amount, AMOUNT_MAX_INTEGER_DIGITS);

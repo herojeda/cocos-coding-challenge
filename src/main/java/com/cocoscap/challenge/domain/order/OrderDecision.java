@@ -51,6 +51,8 @@ public record OrderDecision(
             }
         } else if (size <= 0) {
             throw new IllegalArgumentException("size must be positive");
+        } else if (size > NewOrder.MAX_SIZE) {
+            throw new IllegalArgumentException("size is out of range");
         }
         if (price != null && price.signum() <= 0) {
             throw new IllegalArgumentException("price must be positive");

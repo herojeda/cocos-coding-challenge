@@ -78,10 +78,20 @@ public final class OrderPlacementPolicy {
         if (!newOrder.byAmount()) {
             return newOrder.size();
         }
-        long size = newOrder.amount().divide(referencePrice, 0, RoundingMode.DOWN).longValueExact();
+        long size;
+        try {
+            size = newOrder.amount().divide(referencePrice, 0, RoundingMode.DOWN).longValueExact();
+        } catch (ArithmeticException ex) {
+            throw new NewOrderValidationException(
+                    "amount", "amount is too large for the reference price");
+        }
         if (size == 0L) {
             throw new NewOrderValidationException(
                     "amount", "amount is not enough for one share at the reference price");
+        }
+        if (size > NewOrder.MAX_SIZE) {
+            throw new NewOrderValidationException(
+                    "amount", "amount is too large for the reference price");
         }
         return size;
     }

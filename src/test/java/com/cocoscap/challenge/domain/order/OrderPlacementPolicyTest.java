@@ -88,6 +88,25 @@ class OrderPlacementPolicyTest {
     }
 
     @Test
+    @DisplayName("Amount that yields more than MAX_SIZE shares is a validation error")
+    void amountYieldingOversizedSizeIsValidationError() {
+        Account account = cashAccount("1");
+        // max amount / 0.01 = 10^18 shares > MAX_SIZE (16 digits)
+        NewOrder request = new NewOrder(
+                USER,
+                GGAL,
+                OrderSide.BUY,
+                OrderType.MARKET,
+                null,
+                new BigDecimal("9999999999999999.99"),
+                null);
+        assertThatThrownBy(() -> decide(request, account, Optional.of(quote(GGAL, "0.01"))))
+                .isInstanceOf(NewOrderValidationException.class)
+                .extracting(ex -> ((NewOrderValidationException) ex).field())
+                .isEqualTo("amount");
+    }
+
+    @Test
     @DisplayName("ORD-12 · Compra MARKET")
     void ord12() {
         Account account = cashAccount("100000");
