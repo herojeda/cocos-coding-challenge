@@ -38,3 +38,8 @@ management:
 jdbc:
   datasource-proxy:
     include-parameter-values: false
+
+# ADR-005: bounded JDBC fetch size for ledger reconstruction streams.
+cocos:
+  persistence:
+    ledger-fetch-size: 500
