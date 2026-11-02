@@ -41,7 +41,7 @@ Un usuario DEBE poder cancelar una orden propia en estado `NEW`. La orden DEBE p
 - **THEN** la orden queda en estado `CANCELLED`
 - **AND** sus pesos disponibles pasan a ser 663.000 ARS
 
-La liberación de reservas depende del supuesto [S1](../../assumptions.md) *(pendiente: confirmar con Cocos)*.
+La liberación de reservas sigue el supuesto [S1](../../assumptions.md), confirmado por Cocos.
 
 ### Requirement: Solo se cancelan órdenes pendientes
 

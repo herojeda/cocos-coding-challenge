@@ -70,7 +70,7 @@ La tenencia de cada instrumento DEBE calcularse como la cantidad comprada menos 
 - **THEN** su tenencia de BMA es −10
 - **AND** el sistema NO DEBE modificar las órdenes para corregirla
 
-Este caso viene de la seed provista y el sistema no puede generarlo con órdenes nuevas (ver `order-placement`). El tratamiento de la tenencia negativa *(pendiente: confirmar supuesto [S3](../../assumptions.md) con Cocos)*.
+Este caso viene de la seed provista y el sistema no puede generarlo con órdenes nuevas (ver `order-placement`). El tratamiento de la tenencia negativa sigue el supuesto [S3](../../assumptions.md), confirmado por Cocos.
 
 ### Requirement: Reservas de órdenes pendientes
 
@@ -99,7 +99,7 @@ Cada orden BUY LIMIT en estado `NEW` DEBE reservar `size × price` de los pesos 
 - **WHEN** se consulta su saldo
 - **THEN** no tiene pesos reservados
 
-La reserva de órdenes pendientes *(pendiente: confirmar supuesto [S1](../../assumptions.md) con Cocos)*.
+La reserva de órdenes pendientes sigue el supuesto [S1](../../assumptions.md), confirmado por Cocos.
 
 ### Requirement: Disponible en pesos
 
