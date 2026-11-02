@@ -30,8 +30,8 @@ class SchemaMigrationTest {
     JdbcClient jdbcClient;
 
     @Test
-    @DisplayName("All six migrations applied successfully")
-    void allSixMigrationsApplied() {
+    @DisplayName("All seven migrations applied successfully")
+    void allSevenMigrationsApplied() {
         List<String> versions = jdbcClient
                 .sql(
                         """
@@ -43,7 +43,70 @@ class SchemaMigrationTest {
                 .query(String.class)
                 .list();
 
-        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6");
+        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7");
+    }
+
+    @Test
+    @DisplayName("orders.amount rejects a non-positive value")
+    void ordersAmountRejectsNonPositive() {
+        long instrumentId = instrumentId("GGAL");
+        long userId = userId("emiliano@test.com");
+
+        assertThatThrownBy(() -> insertOrderWithAmount(
+                        instrumentId, userId, "1", "BUY", "MARKET", "FILLED", null, new BigDecimal("0"), null, null))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("orders.amount rejects a transfer side")
+    void ordersAmountRejectsTransferSide() {
+        long instrumentId = instrumentId("ARS");
+        long userId = userId("emiliano@test.com");
+
+        assertThatThrownBy(() -> insertOrderWithAmount(
+                        instrumentId,
+                        userId,
+                        "100.00",
+                        "CASH_IN",
+                        "MARKET",
+                        "FILLED",
+                        null,
+                        new BigDecimal("100.00"),
+                        null,
+                        null))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("orders without size are accepted only as REJECTED with amount and NO_MARKET_PRICE")
+    void ordersWithoutSizeOnlyAcceptedAsNoMarketPriceRejection() {
+        long instrumentId = instrumentId("PGR");
+        long userId = userId("emiliano@test.com");
+
+        insertOrderWithAmount(
+                instrumentId,
+                userId,
+                null,
+                "BUY",
+                "MARKET",
+                "REJECTED",
+                "NO_MARKET_PRICE",
+                new BigDecimal("10000.00"),
+                null,
+                null);
+
+        assertThatThrownBy(() -> insertOrderWithAmount(
+                        instrumentId,
+                        userId,
+                        null,
+                        "BUY",
+                        "MARKET",
+                        "REJECTED",
+                        "INSUFFICIENT_CASH",
+                        new BigDecimal("10000.00"),
+                        null,
+                        null))
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test
@@ -371,20 +434,47 @@ class SchemaMigrationTest {
             String rejectionReason,
             String idempotencyKey,
             String requestHash) {
+        insertOrderWithAmount(
+                instrumentId,
+                userId,
+                size,
+                side,
+                type,
+                status,
+                rejectionReason,
+                null,
+                idempotencyKey,
+                requestHash);
+    }
+
+    private void insertOrderWithAmount(
+            long instrumentId,
+            long userId,
+            String size,
+            String side,
+            String type,
+            String status,
+            String rejectionReason,
+            BigDecimal amount,
+            String idempotencyKey,
+            String requestHash) {
+        BigDecimal price = "REJECTED".equals(status) && size == null ? null : new BigDecimal("100.00");
         jdbcClient
                 .sql(
                         """
                         INSERT INTO orders (
-                            instrument_id, user_id, size, price, type, side, status, datetime,
+                            instrument_id, user_id, size, amount, price, type, side, status, datetime,
                             rejection_reason, idempotency_key, request_hash
                         ) VALUES (
-                            :instrumentId, :userId, :size, 100.00, :type, :side, :status, NOW(),
+                            :instrumentId, :userId, :size, :amount, :price, :type, :side, :status, NOW(),
                             :rejectionReason, :idempotencyKey, :requestHash
                         )
                         """)
                 .param("instrumentId", instrumentId)
                 .param("userId", userId)
-                .param("size", new BigDecimal(size))
+                .param("size", size == null ? null : new BigDecimal(size))
+                .param("amount", amount)
+                .param("price", price)
                 .param("type", type)
                 .param("side", side)
                 .param("status", status)

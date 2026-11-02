@@ -87,6 +87,25 @@ class JdbcAccountLedgerAdapterIT {
                 .hasMessageContaining("active transaction");
     }
 
+    @Test
+    @DisplayName("ORD-41 · REJECTED without size is streamed and does not change the rebuilt account")
+    void ord41RejectedWithoutSizeDoesNotChangeRebuiltAccount() {
+        long userId = insertUser("ledger-ord41@test.com");
+        long accountId = insertPendingAccount(userId);
+        Instant cashInAt = Instant.parse("2023-07-12T13:00:00Z");
+        Instant rejectedAt = Instant.parse("2023-07-12T14:00:00Z");
+        insertCashIn(userId, cashInAt, "100000");
+        insertOrd41Rejection(userId, rejectedAt);
+
+        Account rebuilt;
+        try (Stream<LedgerEntry> stream = accountLedgerPort.streamByUserId(UserId.of(userId))) {
+            rebuilt = Account.rebuildFrom(AccountId.of(accountId), stream, COST_BASIS);
+        }
+
+        assertThat(rebuilt.cash()).isEqualByComparingTo("100000");
+        assertThat(rebuilt.state().positions()).isEmpty();
+    }
+
     private long accountIdForUser(long userId) {
         return jdbcClient
                 .sql("SELECT id FROM accounts WHERE user_id = :userId")
@@ -103,7 +122,25 @@ class JdbcAccountLedgerAdapterIT {
                 .single();
     }
 
+    private long insertPendingAccount(long userId) {
+        return jdbcClient
+                .sql(
+                        """
+                        INSERT INTO accounts (user_id, account_number, cash, reserved_cash, projection_status)
+                        VALUES (:userId, :accountNumber, 0, 0, 'PENDING')
+                        RETURNING id
+                        """)
+                .param("userId", userId)
+                .param("accountNumber", "LG-" + userId)
+                .query(Long.class)
+                .single();
+    }
+
     private long insertOrder(long userId, Instant datetime) {
+        return insertCashIn(userId, datetime, "1");
+    }
+
+    private long insertCashIn(long userId, Instant datetime, String size) {
         long arsId = jdbcClient
                 .sql("SELECT id FROM instruments WHERE ticker = 'ARS'")
                 .query(Long.class)
@@ -114,14 +151,37 @@ class JdbcAccountLedgerAdapterIT {
                         INSERT INTO orders (
                             instrument_id, user_id, size, price, type, side, status, datetime
                         ) VALUES (
-                            :instrumentId, :userId, 1, 1.00, 'MARKET', 'CASH_IN', 'FILLED', :datetime
+                            :instrumentId, :userId, :size, 1.00, 'MARKET', 'CASH_IN', 'FILLED', :datetime
                         )
                         RETURNING id
                         """)
                 .param("instrumentId", arsId)
                 .param("userId", userId)
+                .param("size", new java.math.BigDecimal(size))
                 .param("datetime", OffsetDateTime.ofInstant(datetime, ZoneOffset.UTC))
                 .query(Long.class)
                 .single();
+    }
+
+    private void insertOrd41Rejection(long userId, Instant datetime) {
+        long pgrId = jdbcClient
+                .sql("SELECT id FROM instruments WHERE ticker = 'PGR'")
+                .query(Long.class)
+                .single();
+        jdbcClient
+                .sql(
+                        """
+                        INSERT INTO orders (
+                            instrument_id, user_id, size, amount, price, type, side, status, datetime,
+                            rejection_reason
+                        ) VALUES (
+                            :instrumentId, :userId, NULL, 10000.00, NULL, 'MARKET', 'BUY', 'REJECTED',
+                            :datetime, 'NO_MARKET_PRICE'
+                        )
+                        """)
+                .param("instrumentId", pgrId)
+                .param("userId", userId)
+                .param("datetime", OffsetDateTime.ofInstant(datetime, ZoneOffset.UTC))
+                .update();
     }
 }
