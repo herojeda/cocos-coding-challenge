@@ -119,7 +119,9 @@ El rendimiento total de una posición DEBE calcularse como `último precio / cos
 - **THEN** la posición en PAMP tiene 40 acciones con costo promedio 930
 - **AND** el rendimiento total es −0,45%
 
-El método de costo y el redondeo de los porcentajes *(pendiente: confirmar supuesto [S2](../../assumptions.md) con Cocos y definir la precisión de los porcentajes)*.
+Los porcentajes (rendimiento total y variación diaria) DEBEN informarse en puntos porcentuales con 2 decimales, redondeados con `HALF_EVEN`: −0,45% se informa como `-0.45`. El redondeo se aplica una sola vez, al resultado final, sobre el cociente calculado con el costo promedio y el último precio ya guardados.
+
+El método de costo sigue el supuesto [S2](../../assumptions.md), confirmado por Cocos.
 
 ### Requirement: Datos complementarios de cada posición
 
