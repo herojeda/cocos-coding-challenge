@@ -137,6 +137,21 @@ class AccountForUpdateLoaderIT {
             rebuilds.add(success);
         }
 
+        @Override
+        public void orderProcessed(String type, String side, String status, String rejectionReason) {
+            // unused in this IT
+        }
+
+        @Override
+        public void accountBusy(String operation) {
+            // unused in this IT
+        }
+
+        @Override
+        public void idempotencyReplay(String result) {
+            // unused in this IT
+        }
+
         List<Boolean> rebuilds() {
             return List.copyOf(rebuilds);
         }
