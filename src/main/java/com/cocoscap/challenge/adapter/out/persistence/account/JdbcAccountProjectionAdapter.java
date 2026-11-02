@@ -12,12 +12,15 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
- * Reads {@code accounts} by {@code user_id} in one statement, joining {@code positions} only when
- * the projection is {@code READY}, so cash and holdings come from a single database snapshot.
+ * Reads and writes {@code accounts} / {@code positions}. Reads join positions only when the
+ * projection is {@code READY}. Writes persist the full {@link AccountState} and mark the account
+ * {@code READY}.
  */
 public class JdbcAccountProjectionAdapter implements AccountProjectionPort {
 
@@ -65,6 +68,33 @@ public class JdbcAccountProjectionAdapter implements AccountProjectionPort {
         };
     }
 
+    @Override
+    public void save(AccountState state) {
+        requireActiveTransaction("account projection save");
+        Objects.requireNonNull(state, "state");
+
+        int updated = jdbcClient
+                .sql(
+                        """
+                        UPDATE accounts
+                        SET cash = :cash,
+                            reserved_cash = :reservedCash,
+                            projection_status = 'READY'
+                        WHERE id = :id
+                        """)
+                .param("id", state.id().value())
+                .param("cash", state.cash())
+                .param("reservedCash", state.reservedCash())
+                .update();
+        if (updated != 1) {
+            throw new IllegalStateException(
+                    "expected to update exactly one account row, updated " + updated);
+        }
+
+        deletePositionsNotInState(state);
+        upsertPositions(state);
+    }
+
     private static AccountState toState(AccountId accountId, List<AccountProjectionRow> rows) {
         AccountProjectionRow first = rows.getFirst();
         List<PositionState> positions = new ArrayList<>();
@@ -88,6 +118,63 @@ public class JdbcAccountProjectionAdapter implements AccountProjectionPort {
                 row.reservedQuantity(),
                 averageCost,
                 realizedPnl);
+    }
+
+    private void deletePositionsNotInState(AccountState state) {
+        List<Long> instrumentIds = state.positions().stream()
+                .map(position -> position.instrumentId().value())
+                .toList();
+        if (instrumentIds.isEmpty()) {
+            jdbcClient
+                    .sql("DELETE FROM positions WHERE account_id = :accountId")
+                    .param("accountId", state.id().value())
+                    .update();
+            return;
+        }
+        jdbcClient
+                .sql(
+                        """
+                        DELETE FROM positions
+                        WHERE account_id = :accountId
+                          AND instrument_id NOT IN (:instrumentIds)
+                        """)
+                .param("accountId", state.id().value())
+                .param("instrumentIds", instrumentIds)
+                .update();
+    }
+
+    private void upsertPositions(AccountState state) {
+        for (PositionState position : state.positions()) {
+            jdbcClient
+                    .sql(
+                            """
+                            INSERT INTO positions (
+                                account_id, instrument_id, quantity, reserved_quantity,
+                                average_cost, realized_pnl
+                            ) VALUES (
+                                :accountId, :instrumentId, :quantity, :reservedQuantity,
+                                :averageCost, :realizedPnl
+                            )
+                            ON CONFLICT (account_id, instrument_id) DO UPDATE SET
+                                quantity = EXCLUDED.quantity,
+                                reserved_quantity = EXCLUDED.reserved_quantity,
+                                average_cost = EXCLUDED.average_cost,
+                                realized_pnl = EXCLUDED.realized_pnl
+                            """)
+                    .param("accountId", state.id().value())
+                    .param("instrumentId", position.instrumentId().value())
+                    .param("quantity", position.quantity())
+                    .param("reservedQuantity", position.reservedQuantity())
+                    .param("averageCost", position.averageCost().orElse(null))
+                    .param("realizedPnl", position.realizedPnl())
+                    .update();
+        }
+    }
+
+    private static void requireActiveTransaction(String operation) {
+        if (!TransactionSynchronizationManager.isActualTransactionActive()) {
+            throw new IllegalStateException(operation + " requires an active transaction");
+        }
     }
 
     record AccountProjectionRow(
