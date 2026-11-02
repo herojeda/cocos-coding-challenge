@@ -7,7 +7,7 @@ import java.math.RoundingMode;
 import java.util.Objects;
 
 /**
- * Validated placement pedido: exactly one of size or amount, LIMIT with price, MARKET without
+ * Validated placement request: exactly one of size or amount, LIMIT with price, MARKET without
  * (ORD-01–ORD-05). Instrument existence and {@code CURRENCY} checks stay in the use case.
  *
  * <p>Money fields match the column limits: {@code amount} is {@code NUMERIC(18,2)} and

@@ -1,7 +1,7 @@
 package com.cocoscap.challenge.domain.order;
 
 /**
- * Malformed placement pedido (S8). The web layer maps this to {@code VALIDATION_ERROR} with
+ * Malformed placement request (S8). The web layer maps this to {@code VALIDATION_ERROR} with
  * {@link #field()}.
  */
 public final class NewOrderValidationException extends RuntimeException {

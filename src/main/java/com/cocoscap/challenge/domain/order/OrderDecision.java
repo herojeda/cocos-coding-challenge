@@ -36,6 +36,12 @@ public record OrderDecision(
         } else if (rejectionReason != null) {
             throw new IllegalArgumentException("rejectionReason is only allowed when REJECTED");
         }
+        if (rejectionReason == RejectionReason.NO_MARKET_PRICE) {
+            if (type != OrderType.MARKET || price != null) {
+                throw new IllegalArgumentException(
+                        "NO_MARKET_PRICE applies only to MARKET decisions without a price");
+            }
+        }
         if (size == null) {
             if (status != OrderStatus.REJECTED
                     || rejectionReason != RejectionReason.NO_MARKET_PRICE
