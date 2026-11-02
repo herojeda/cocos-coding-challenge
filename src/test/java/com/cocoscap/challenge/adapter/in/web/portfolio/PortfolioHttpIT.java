@@ -78,6 +78,17 @@ class PortfolioHttpIT {
     }
 
     @Test
+    @DisplayName("userId below 1 is a validation error")
+    void userIdBelowOneIsValidationError() {
+        MvcTestResult result = get("/users/0/portfolio");
+
+        assertThat(result).hasStatus(HttpStatus.BAD_REQUEST);
+        assertThat(result).hasContentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
+        assertThat(jsonString(result, "$.code")).isEqualTo("VALIDATION_ERROR");
+        assertThat(jsonString(result, "$.errors[0].field")).isEqualTo("userId");
+    }
+
+    @Test
     @DisplayName("READY projection is valued without rebuilding the ledger")
     void readyProjectionSmoke() {
         long userId = insertUser("portfolio-ready@test.com");

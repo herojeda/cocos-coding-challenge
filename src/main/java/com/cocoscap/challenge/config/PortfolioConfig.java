@@ -6,18 +6,12 @@ import com.cocoscap.challenge.application.instrument.InstrumentLookupPort;
 import com.cocoscap.challenge.application.market.MarketDataPort;
 import com.cocoscap.challenge.application.portfolio.GetPortfolioUseCase;
 import com.cocoscap.challenge.domain.costbasis.CostBasisCalculator;
-import com.cocoscap.challenge.domain.costbasis.WeightedAverageCostBasisCalculator;
 import com.cocoscap.challenge.domain.portfolio.PortfolioValuation;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration(proxyBeanMethods = false)
 public class PortfolioConfig {
-
-    @Bean
-    CostBasisCalculator costBasisCalculator() {
-        return new WeightedAverageCostBasisCalculator();
-    }
 
     @Bean
     PortfolioValuation portfolioValuation() {
