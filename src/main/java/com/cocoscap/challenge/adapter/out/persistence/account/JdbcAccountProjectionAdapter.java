@@ -49,11 +49,20 @@ public class JdbcAccountProjectionAdapter implements AccountProjectionPort {
 
     public JdbcAccountProjectionAdapter(JdbcClient jdbcClient, Duration accountLockTimeout) {
         this.jdbcClient = Objects.requireNonNull(jdbcClient, "jdbcClient");
+        this.lockTimeoutMillis = toLockTimeoutMillis(accountLockTimeout);
+    }
+
+    /**
+     * Converts the configured wait to the millisecond string PostgreSQL expects. Values that
+     * truncate to {@code 0} are rejected: {@code lock_timeout = 0} disables the limit.
+     */
+    static String toLockTimeoutMillis(Duration accountLockTimeout) {
         Objects.requireNonNull(accountLockTimeout, "accountLockTimeout");
-        if (accountLockTimeout.isNegative() || accountLockTimeout.isZero()) {
-            throw new IllegalArgumentException("accountLockTimeout must be positive");
+        long millis = accountLockTimeout.toMillis();
+        if (millis < 1) {
+            throw new IllegalArgumentException("accountLockTimeout must be at least 1ms");
         }
-        this.lockTimeoutMillis = String.valueOf(accountLockTimeout.toMillis());
+        return String.valueOf(millis);
     }
 
     @Override
