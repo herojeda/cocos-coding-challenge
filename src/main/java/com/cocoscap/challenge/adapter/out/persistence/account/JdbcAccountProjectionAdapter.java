@@ -12,12 +12,12 @@ import com.cocoscap.challenge.domain.user.UserId;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.SQLException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import org.springframework.dao.DataAccessException;
-import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -44,19 +44,16 @@ public class JdbcAccountProjectionAdapter implements AccountProjectionPort {
             """;
 
     private final JdbcClient jdbcClient;
-    private final String accountLockTimeout;
+    /** PostgreSQL {@code lock_timeout} value in milliseconds (default unit when no suffix). */
+    private final String lockTimeoutMillis;
 
-    public JdbcAccountProjectionAdapter(JdbcClient jdbcClient, String accountLockTimeout) {
+    public JdbcAccountProjectionAdapter(JdbcClient jdbcClient, Duration accountLockTimeout) {
         this.jdbcClient = Objects.requireNonNull(jdbcClient, "jdbcClient");
-        this.accountLockTimeout = requireLockTimeout(accountLockTimeout);
-    }
-
-    private static String requireLockTimeout(String accountLockTimeout) {
         Objects.requireNonNull(accountLockTimeout, "accountLockTimeout");
-        if (accountLockTimeout.isBlank()) {
-            throw new IllegalArgumentException("accountLockTimeout must not be blank");
+        if (accountLockTimeout.isNegative() || accountLockTimeout.isZero()) {
+            throw new IllegalArgumentException("accountLockTimeout must be positive");
         }
-        return accountLockTimeout;
+        this.lockTimeoutMillis = String.valueOf(accountLockTimeout.toMillis());
     }
 
     @Override
@@ -69,7 +66,7 @@ public class JdbcAccountProjectionAdapter implements AccountProjectionPort {
         requireActiveTransaction("account lock");
         jdbcClient
                 .sql("SELECT set_config('lock_timeout', :timeout, true)")
-                .param("timeout", accountLockTimeout)
+                .param("timeout", lockTimeoutMillis)
                 .query(String.class)
                 .single();
         try {
@@ -82,18 +79,15 @@ public class JdbcAccountProjectionAdapter implements AccountProjectionPort {
         }
     }
 
-    /**
-     * Spring maps {@code 55P03} to {@link PessimisticLockingFailureException} when the PostgreSQL
-     * error-code translator is active; otherwise the same SQLState may surface as a generic
-     * {@link DataAccessException}. Both paths mean the account lock timed out.
-     */
+    /** True only for PostgreSQL {@code lock_timeout} (SQLState {@code 55P03}), not other lock failures. */
     private static boolean isLockTimeout(DataAccessException ex) {
-        if (ex instanceof PessimisticLockingFailureException) {
-            return true;
+        for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
+            if (cause instanceof SQLException sqlException
+                    && LOCK_NOT_AVAILABLE.equals(sqlException.getSQLState())) {
+                return true;
+            }
         }
-        Throwable cause = ex.getMostSpecificCause();
-        return cause instanceof SQLException sqlException
-                && LOCK_NOT_AVAILABLE.equals(sqlException.getSQLState());
+        return false;
     }
 
     @Override

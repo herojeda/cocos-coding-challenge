@@ -19,6 +19,7 @@ import com.cocoscap.challenge.domain.costbasis.WeightedAverageCostBasisCalculato
 import com.cocoscap.challenge.domain.instrument.InstrumentId;
 import com.cocoscap.challenge.domain.user.UserId;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
@@ -219,7 +220,8 @@ class JdbcAccountProjectionAdapterIT {
         long userId = insertUserCommitted("projection-lock-busy@test.com");
         long accountId = insertAccountCommitted(userId, "20011", "10.00", "0.00", "PENDING");
         UserId lockedUser = UserId.of(userId);
-        AccountProjectionPort shortTimeoutPort = new JdbcAccountProjectionAdapter(jdbcClient, "200ms");
+        AccountProjectionPort shortTimeoutPort =
+                new JdbcAccountProjectionAdapter(jdbcClient, Duration.ofMillis(200));
         TransactionTemplate tx = new TransactionTemplate(transactionManager);
 
         CountDownLatch holderHasLock = new CountDownLatch(1);
