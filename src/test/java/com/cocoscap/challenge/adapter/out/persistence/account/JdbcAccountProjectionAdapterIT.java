@@ -153,6 +153,57 @@ class JdbcAccountProjectionAdapterIT {
     }
 
     @Test
+    @DisplayName("save upsert updates every column of an existing position")
+    void saveUpsertUpdatesEveryPositionColumn() {
+        long userId = insertUser("projection-save-upsert@test.com");
+        long accountId = insertAccount(userId, "20013", "100.00", "0.00", "READY");
+        long pampId = instrumentId("PAMP");
+        insertPosition(accountId, pampId, 10L, 0L, new BigDecimal("900.000000"), new BigDecimal("0.00"));
+
+        AccountState updated = new AccountState(
+                AccountId.of(accountId),
+                new BigDecimal("100.00"),
+                new BigDecimal("0.00"),
+                List.of(new PositionState(
+                        InstrumentId.of(pampId),
+                        15L,
+                        5L,
+                        Optional.of(new BigDecimal("920.000000")),
+                        new BigDecimal("50.00"))));
+
+        accountProjectionPort.save(updated);
+
+        assertThat(accountProjectionPort.findByUserId(UserId.of(userId)))
+                .contains(new StoredAccount.Ready(updated));
+    }
+
+    @Test
+    @DisplayName("save upsert clears average_cost when the position has no cost")
+    void saveUpsertClearsAverageCostWhenEmpty() {
+        long userId = insertUser("projection-save-null-cost@test.com");
+        long accountId = insertAccount(userId, "20014", "100.00", "0.00", "READY");
+        long pampId = instrumentId("PAMP");
+        insertPosition(accountId, pampId, 10L, 0L, new BigDecimal("900.000000"), new BigDecimal("0.00"));
+
+        AccountState closed = new AccountState(
+                AccountId.of(accountId),
+                new BigDecimal("100.00"),
+                new BigDecimal("0.00"),
+                List.of(new PositionState(
+                        InstrumentId.of(pampId),
+                        0L,
+                        0L,
+                        Optional.empty(),
+                        new BigDecimal("50.00"))));
+
+        accountProjectionPort.save(closed);
+
+        assertThat(accountProjectionPort.findByUserId(UserId.of(userId)))
+                .contains(new StoredAccount.Ready(closed));
+        assertThat(averageCost(accountId, pampId)).isNull();
+    }
+
+    @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @DisplayName("save requires an active transaction")
     void saveRequiresActiveTransaction() {
@@ -195,6 +246,20 @@ class JdbcAccountProjectionAdapterIT {
                 .query(Integer.class)
                 .single();
         return count > 0;
+    }
+
+    private BigDecimal averageCost(long accountId, long instrumentId) {
+        return jdbcClient
+                .sql(
+                        """
+                        SELECT average_cost FROM positions
+                        WHERE account_id = :accountId AND instrument_id = :instrumentId
+                        """)
+                .param("accountId", accountId)
+                .param("instrumentId", instrumentId)
+                .query(BigDecimal.class)
+                .optional()
+                .orElse(null);
     }
 
     private long accountIdForUser(long userId) {

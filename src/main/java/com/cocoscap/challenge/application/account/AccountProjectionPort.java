@@ -18,7 +18,10 @@ public interface AccountProjectionPort {
     /**
      * Persists the full account state and marks the projection {@code READY}.
      *
-     * <p>Requires an active transaction. Only write use cases call this.
+     * <p>Requires an active transaction. The caller must hold the account lock
+     * ({@code lockByUserId}) in that same transaction: this overwrites the whole projection, so
+     * saving an account read without the lock can silently undo a concurrent write (ADR-006).
+     * Only write use cases call this.
      */
     void save(AccountState state);
 }
