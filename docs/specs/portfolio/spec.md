@@ -121,7 +121,7 @@ El rendimiento total de una posición DEBE calcularse como `último precio / cos
 
 Los porcentajes (rendimiento total y variación diaria) DEBEN informarse en puntos porcentuales con 2 decimales, redondeados con `HALF_EVEN`: −0,45% se informa como `-0.45`. El redondeo se aplica una sola vez, al resultado final, sobre el cociente calculado con el costo promedio y el último precio ya guardados.
 
-El método de costo *(pendiente: confirmar supuesto [S2](../../assumptions.md) con Cocos)*.
+El método de costo sigue el supuesto [S2](../../assumptions.md), confirmado por Cocos.
 
 ### Requirement: Datos complementarios de cada posición
 
