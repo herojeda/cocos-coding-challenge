@@ -12,10 +12,12 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.stream.Stream;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * Streams a user's orders with a bounded JDBC fetch size, ordered by {@code (datetime, id)} to use
- * {@code orders_user_id_datetime_id_idx}.
+ * {@code orders_user_id_datetime_id_idx}. Requires an active transaction: without one, pgJDBC
+ * ignores the fetch size and loads the full result set.
  */
 public class JdbcAccountLedgerAdapter implements AccountLedgerPort {
 
@@ -32,6 +34,10 @@ public class JdbcAccountLedgerAdapter implements AccountLedgerPort {
 
     @Override
     public Stream<LedgerEntry> streamByUserId(UserId userId) {
+        if (!TransactionSynchronizationManager.isActualTransactionActive()) {
+            throw new IllegalStateException(
+                    "ledger stream requires an active transaction: without it the driver ignores the fetch size");
+        }
         return jdbcClient
                 .sql(
                         """
