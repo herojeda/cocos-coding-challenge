@@ -13,7 +13,8 @@ import java.time.Instant;
  * Not the {@code Order} entity — that belongs to order-placement.
  *
  * <p>{@code price} is optional: a MARKET order rejected for missing quote (ORD-25 / S5) is stored
- * without a price.
+ * without a price. {@code size} may be null only when {@code status} is {@code REJECTED} (ORD-41 /
+ * V7): rebuild ignores rejections, so a sizeless rejection never moves the account.
  */
 public record LedgerEntry(
         OrderId id,
@@ -31,9 +32,14 @@ public record LedgerEntry(
         side = requireNonNull(side, "side");
         type = requireNonNull(type, "type");
         status = requireNonNull(status, "status");
-        size = requireNonNull(size, "size");
         datetime = requireNonNull(datetime, "datetime");
-        requirePositive(size, "size");
+        if (size == null) {
+            if (status != OrderStatus.REJECTED) {
+                throw new IllegalArgumentException("size is required unless status is REJECTED");
+            }
+        } else {
+            requirePositive(size, "size");
+        }
         if (price != null) {
             requirePositive(price, "price");
         }
