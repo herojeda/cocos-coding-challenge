@@ -67,6 +67,26 @@ public final class TradingTestUsers {
         return new TestUser(userId, accountId);
     }
 
+    /** Seeds a FILLED BUY so rebuild yields holdings (e.g. 40 PAMP). */
+    public void addFilledBuy(TestUser user, String ticker, long size, BigDecimal price, Instant datetime) {
+        long instrumentId = instrumentId(ticker);
+        jdbcClient
+                .sql(
+                        """
+                        INSERT INTO orders (
+                            instrument_id, user_id, size, price, type, side, status, datetime
+                        ) VALUES (
+                            :instrumentId, :userId, :size, :price, 'MARKET', 'BUY', 'FILLED', :datetime
+                        )
+                        """)
+                .param("instrumentId", instrumentId)
+                .param("userId", user.userId())
+                .param("size", BigDecimal.valueOf(size))
+                .param("price", price)
+                .param("datetime", OffsetDateTime.ofInstant(datetime, ZoneOffset.UTC))
+                .update();
+    }
+
     public long instrumentId(String ticker) {
         return jdbcClient
                 .sql("SELECT id FROM instruments WHERE ticker = :ticker")
