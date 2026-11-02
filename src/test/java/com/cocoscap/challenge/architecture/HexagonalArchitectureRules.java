@@ -102,6 +102,13 @@ public final class HexagonalArchitectureRules {
             .because("ADR-003: domain classes are named with the business term, without stereotype suffixes")
             .allowEmptyShould(true);
 
+    private static final String CONFIGURATION = "org.springframework.context.annotation.Configuration";
+    private static final String REST_CONTROLLER = "org.springframework.web.bind.annotation.RestController";
+
+    /**
+     * ADR-003 naming in both directions: each suffix lives in its layer, and each role in a layer
+     * carries its suffix (configuration classes, REST controllers and persistence port adapters).
+     */
     public static final ArchRule ROLE_SUFFIXES_LIVE_IN_THEIR_LAYER = CompositeArchRule.of(List.of(
                     suffixResidesIn("UseCase", "..application.."),
                     suffixResidesIn("Port", "..application.."),
@@ -114,7 +121,20 @@ public final class HexagonalArchitectureRules {
                     classes().that().haveSimpleNameStartingWith("Jdbc").and().haveSimpleNameEndingWith("Adapter")
                             .should().resideInAPackage("..adapter.out.persistence..")
                             .allowEmptyShould(true),
-                    suffixResidesIn("Config", "..config..")))
+                    suffixResidesIn("Config", "..config.."),
+                    classes().that().resideInAPackage("..config..")
+                            .and().areAnnotatedWith(CONFIGURATION)
+                            .should().haveSimpleNameEndingWith("Config")
+                            .allowEmptyShould(true),
+                    classes().that().resideInAPackage("..adapter.in.web..")
+                            .and().areAnnotatedWith(REST_CONTROLLER)
+                            .should().haveSimpleNameEndingWith("Controller")
+                            .allowEmptyShould(true),
+                    classes().that().resideInAPackage("..adapter.out.persistence..")
+                            .and().implement(resideInAPackage("..application.."))
+                            .should().haveSimpleNameStartingWith("Jdbc")
+                            .andShould().haveSimpleNameEndingWith("Adapter")
+                            .allowEmptyShould(true)))
             .because("ADR-003: the suffix states the architectural role, so it must match the layer")
             .allowEmptyShould(true);
 
