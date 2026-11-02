@@ -36,6 +36,7 @@ El `database.sql` original no se modifica. Cada cambio sobre el modelo provisto 
 | `V4__accounts_and_positions` | Tablas `accounts` y `positions`, alta de una cuenta por usuario en estado `PENDING` y traspaso de `account_number`; la proyección se persiste en la primera escritura de cada cuenta (ver [ADR-005](ADR-005-materialized-accounts.md)) |
 | `V5__timestamptz` | `orders.datetime` como `TIMESTAMPTZ`, interpretando los valores existentes como hora de Buenos Aires ([S14](../assumptions.md)) |
 | `V6__market_data_positive_prices` | `CHECK (close > 0 AND previous_close > 0)` en `market_data` |
+| `V7__order_requested_amount` | `orders.amount` para el monto pedido y `orders.size` nullable solo en el rechazo de una orden por monto sin cotización ([S6](../assumptions.md)) |
 
 ### Contenido de `V3`
 
@@ -57,6 +58,24 @@ El `database.sql` original no se modifica. Cada cambio sobre el modelo provisto 
 ### Contenido de `V6`
 
 `ALTER TABLE market_data ADD CONSTRAINT market_data_prices_positive CHECK (close > 0 AND previous_close > 0)`. La variación diaria divide por `previous_close` y la valuación multiplica por `close`: un precio en cero o negativo no es una cotización válida, y la base lo impide en lugar de que cada cálculo lo contemple. Ninguna cotización de la seed lo viola. El dominio valida lo mismo al construir una cotización.
+
+### Contenido de `V7`
+
+```sql
+ALTER TABLE orders
+    ADD COLUMN amount NUMERIC(18, 2),
+    ALTER COLUMN size DROP NOT NULL,
+    ADD CONSTRAINT orders_amount_positive CHECK (amount IS NULL OR amount > 0),
+    ADD CONSTRAINT orders_amount_only_for_trades CHECK (amount IS NULL OR side IN ('BUY', 'SELL')),
+    ADD CONSTRAINT orders_size_or_unpriced_amount CHECK (
+        size IS NOT NULL
+        OR (amount IS NOT NULL AND status = 'REJECTED' AND rejection_reason = 'NO_MARKET_PRICE'));
+```
+
+- `amount` guarda el monto en pesos de toda orden pedida por monto, también las ejecutadas, para que el libro registre lo que el usuario pidió además de la cantidad calculada.
+- `size` solo puede faltar en un caso: una orden por monto rechazada por falta de cotización, en la que la cantidad no se puede calcular. El último `CHECK` lo acota exactamente a ese caso, así que ninguna otra orden puede quedar sin cantidad.
+- Los `CHECK` existentes sobre `size` (positivo y entero salvo en transferencias) siguen valiendo, porque un `CHECK` con `NULL` no falla.
+- Las órdenes de la seed no tienen monto y todas tienen cantidad, así que cumplen las tres restricciones.
 
 Todos los constraints se verificaron contra la seed: no hay tickers, emails ni cotizaciones duplicadas.
 

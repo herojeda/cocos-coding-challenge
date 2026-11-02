@@ -92,6 +92,8 @@ Como datos complementarios se exponen el **resultado realizado** (`(precio de ve
 
 **Fundamento:** el enunciado no admite fracciones de acciones. Una orden por 0 acciones no llega a ser una orden enviable al mercado, así que no corresponde registrarla como rechazada.
 
+**Decisión de diseño complementaria:** toda orden pedida por monto registra también el monto pedido. Si es una orden MARKET sobre un instrumento sin cotización ([S5](#s5--instrumentos-sin-cotización)), la cantidad no se puede calcular: se registra `REJECTED` con `NO_MARKET_PRICE`, sin cantidad y con el monto pedido. No es un error de validación, porque sin precio no se puede saber si el monto alcanza para una acción. Registrar una cantidad inventada (0 o 1) sería un dato falso en el libro.
+
 **Afecta a:** `order-placement`.
 
 ## S7 — Órdenes LIMIT que cruzan el precio de mercado
