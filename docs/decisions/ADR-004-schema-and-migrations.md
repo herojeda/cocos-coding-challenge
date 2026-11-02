@@ -35,6 +35,7 @@ El `database.sql` original no se modifica. Cada cambio sobre el modelo provisto 
 | `V3__constraints_and_indexes` | Identificadores `BIGINT`, `orders.size` como `NUMERIC(18,2)`, normalización de `instruments.type`, `NOT NULL` donde corresponde, `CHECK` sobre los enumerados, unicidad, índices, extensión `unaccent` la columna `orders.rejection_reason` y las columnas de idempotencia (`orders.idempotency_key`, `orders.request_hash`) |
 | `V4__accounts_and_positions` | Tablas `accounts` y `positions`, alta de una cuenta por usuario en estado `PENDING` y traspaso de `account_number`; la proyección se persiste en la primera escritura de cada cuenta (ver [ADR-005](ADR-005-materialized-accounts.md)) |
 | `V5__timestamptz` | `orders.datetime` como `TIMESTAMPTZ`, interpretando los valores existentes como hora de Buenos Aires ([S14](../assumptions.md)) |
+| `V6__market_data_positive_prices` | `CHECK (close > 0 AND previous_close > 0)` en `market_data` |
 
 ### Contenido de `V3`
 
@@ -52,6 +53,10 @@ El `database.sql` original no se modifica. Cada cambio sobre el modelo provisto 
 ### Contenido de `V5`
 
 `ALTER TABLE orders ALTER COLUMN datetime TYPE TIMESTAMPTZ USING datetime AT TIME ZONE 'America/Argentina/Buenos_Aires'`. El `USING` es obligatorio: sin él, PostgreSQL interpreta los valores existentes según la zona horaria de la sesión, que cambia de un entorno a otro, y la misma migración daría instantes distintos. Va en una migración nueva porque `V3` y `V4` ya están aplicadas. El índice `orders(user_id, datetime, id)` se reconstruye con el cambio de tipo.
+
+### Contenido de `V6`
+
+`ALTER TABLE market_data ADD CONSTRAINT market_data_prices_positive CHECK (close > 0 AND previous_close > 0)`. La variación diaria divide por `previous_close` y la valuación multiplica por `close`: un precio en cero o negativo no es una cotización válida, y la base lo impide en lugar de que cada cálculo lo contemple. Ninguna cotización de la seed lo viola. El dominio valida lo mismo al construir una cotización.
 
 Todos los constraints se verificaron contra la seed: no hay tickers, emails ni cotizaciones duplicadas.
 
