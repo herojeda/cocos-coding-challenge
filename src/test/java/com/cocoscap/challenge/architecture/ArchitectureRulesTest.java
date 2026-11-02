@@ -3,15 +3,19 @@ package com.cocoscap.challenge.architecture;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.cocoscap.challenge.architecture.fixtures.adapter.in.web.InstrumentApi;
 import com.cocoscap.challenge.architecture.fixtures.adapter.in.web.WebDependingOnPersistence;
 import com.cocoscap.challenge.architecture.fixtures.adapter.out.observability.ObservabilityMarker;
+import com.cocoscap.challenge.architecture.fixtures.adapter.out.persistence.LookupJdbcAdapter;
 import com.cocoscap.challenge.architecture.fixtures.adapter.out.persistence.PersistenceDependingOnObservability;
 import com.cocoscap.challenge.architecture.fixtures.adapter.out.persistence.PersistenceMarker;
 import com.cocoscap.challenge.architecture.fixtures.application.ApplicationDependingOnAdapter;
 import com.cocoscap.challenge.architecture.fixtures.application.ApplicationUsingService;
 import com.cocoscap.challenge.architecture.fixtures.application.CompliantTransactionalUseCase;
 import com.cocoscap.challenge.architecture.fixtures.application.ConcreteSearchPort;
+import com.cocoscap.challenge.architecture.fixtures.application.LookupPort;
 import com.cocoscap.challenge.architecture.fixtures.application.MisplacedController;
+import com.cocoscap.challenge.architecture.fixtures.config.WiringConfiguration;
 import com.cocoscap.challenge.architecture.fixtures.domain.CompliantDomainType;
 import com.cocoscap.challenge.architecture.fixtures.domain.DomainDependingOnSpring;
 import com.cocoscap.challenge.architecture.fixtures.domain.PriceVO;
@@ -92,7 +96,19 @@ class ArchitectureRulesTest {
                 Arguments.of(
                         "port that is not an interface violates role suffixes",
                         HexagonalArchitectureRules.ROLE_SUFFIXES_LIVE_IN_THEIR_LAYER,
-                        new Class<?>[] {ConcreteSearchPort.class}));
+                        new Class<?>[] {ConcreteSearchPort.class}),
+                Arguments.of(
+                        "configuration class without the Config suffix violates role suffixes",
+                        HexagonalArchitectureRules.ROLE_SUFFIXES_LIVE_IN_THEIR_LAYER,
+                        new Class<?>[] {WiringConfiguration.class}),
+                Arguments.of(
+                        "REST controller without the Controller suffix violates role suffixes",
+                        HexagonalArchitectureRules.ROLE_SUFFIXES_LIVE_IN_THEIR_LAYER,
+                        new Class<?>[] {InstrumentApi.class}),
+                Arguments.of(
+                        "persistence port adapter not named Jdbc*Adapter violates role suffixes",
+                        HexagonalArchitectureRules.ROLE_SUFFIXES_LIVE_IN_THEIR_LAYER,
+                        new Class<?>[] {LookupJdbcAdapter.class, LookupPort.class}));
     }
 
     private static JavaClasses importClasses(Class<?>... classes) {
