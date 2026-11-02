@@ -1,6 +1,7 @@
 package com.cocoscap.challenge.adapter.out.persistence.account;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.cocoscap.challenge.PostgresTestcontainersConfiguration;
 import com.cocoscap.challenge.application.account.AccountLedgerPort;
@@ -23,6 +24,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest
@@ -74,6 +76,15 @@ class JdbcAccountLedgerAdapterIT {
         }
 
         assertThat(ids).containsExactly(idAtEarlier, idAtLater, idAtLaterAgain);
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DisplayName("Ledger stream without a transaction fails instead of ignoring fetch size")
+    void ledgerStreamRequiresActiveTransaction() {
+        assertThatThrownBy(() -> accountLedgerPort.streamByUserId(UserId.of(1L)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("active transaction");
     }
 
     private long accountIdForUser(long userId) {
