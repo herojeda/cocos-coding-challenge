@@ -1,5 +1,6 @@
 package com.cocoscap.challenge.adapter.in.web.error;
 
+import com.cocoscap.challenge.domain.user.UserNotFoundException;
 import io.micrometer.common.KeyValue;
 import io.micrometer.observation.Observation;
 import jakarta.servlet.http.HttpServletRequest;
@@ -156,6 +157,11 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             HttpStatusCode status,
             WebRequest request) {
         return problemResponse(ProblemCode.UNSUPPORTED_REQUEST, HttpStatus.UNSUPPORTED_MEDIA_TYPE, ex, null, request);
+    }
+
+    @ExceptionHandler(UserNotFoundException.class)
+    public ResponseEntity<Object> handleUserNotFound(UserNotFoundException ex, WebRequest request) {
+        return problemResponse(ProblemCode.USER_NOT_FOUND, ProblemCode.USER_NOT_FOUND.status(), ex, null, request);
     }
 
     /**

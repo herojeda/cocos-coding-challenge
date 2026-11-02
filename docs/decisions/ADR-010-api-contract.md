@@ -24,6 +24,7 @@ Los errores ([ADR-007](ADR-007-error-handling.md)), la idempotencia ([ADR-008](A
 ### Nombres de los campos
 
 - Los campos del JSON, tanto en los pedidos como en las respuestas, van en **snake_case** (`has_next`, `average_cost`, `rejection_reason`). Es el mismo nombre que la columna correspondiente ([ADR-004](ADR-004-schema-and-migrations.md)): un concepto tiene un solo nombre de punta a punta, y un campo del contrato se encuentra en la base sin traducir.
+- Un porcentaje lleva el sufijo `_pct` y se expresa en puntos porcentuales con 2 decimales (`total_return_pct`, `daily_change_pct`: −0,45% → `-0.45`).
 - Se configura una vez, con la estrategia `SNAKE_CASE` de Jackson para toda la aplicación. Los records del adaptador web usan nombres de Java en camelCase, sin anotaciones por campo.
 - Los parámetros de la query siguen la misma convención.
 
