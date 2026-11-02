@@ -108,7 +108,18 @@ En operación normal nunca: cada orden actualiza la proyección en la misma tran
 #### Evolución documentada
 
 - **Job de reconstrucción en segundo plano.** Procesa las cuentas `PENDING` de forma proactiva, para que el costo no lo pague el primer pedido de cada cuenta. En un entorno con varias instancias, cada una toma cuentas con `SELECT ... FOR UPDATE SKIP LOCKED`, sin coordinación adicional. Con los cuatro usuarios de la seed no aporta nada medible, por eso no se implementa.
-- **Checkpoints de la proyección.** Para historiales muy largos, guardar cada N órdenes una foto de la proyección junto con la posición del libro hasta la que incluye (`datetime`, `id`), y reconstruir desde el último checkpoint en lugar de desde el inicio. Acota el tiempo de reconstrucción, a costa de una tabla más y de invalidar los checkpoints cuando cambia la lógica de la proyección.
+- **Checkpoints de la proyección.** Para historiales muy largos, guardar cada N órdenes una foto de la proyección junto con la posición del libro hasta la que incluye, y reconstruir desde el último checkpoint en lugar de desde el inicio. Acota el tiempo de reconstrucción, a costa de una tabla más y de invalidar los checkpoints cuando cambia la lógica de la proyección.
+
+  **La posición no puede ser solo `(datetime, id)`, porque el libro no es append-only.** Una orden cambia de estado después de registrada (una LIMIT `NEW` pasa a `CANCELLED`, y en la operatoria futura podría pasar a `FILLED`), y su posición en el orden del libro no cambia. Por ejemplo:
+  1. Un checkpoint en la orden 100 incluye la reserva de la orden 90, que estaba `NEW`.
+  2. Después se cancela la orden 90.
+  3. Reconstruir desde el checkpoint aplica solo las órdenes posteriores a la 100, y la reserva de la orden 90 queda viva.
+
+  El resultado es una cuenta incorrecta, sin ningún error visible. Para que los checkpoints sean correctos hace falta una de dos condiciones:
+  - **Cambios de estado como eventos propios**, con su posición en el libro (por ejemplo, una tabla de eventos de orden). La cancelación es un evento posterior al checkpoint, y la reconstrucción la incluye.
+  - **Invalidación por cambio de estado.** Un cambio de estado de una orden borra, en la misma transacción, los checkpoints con posición mayor o igual a la de esa orden, y la próxima reconstrucción parte de uno anterior. Es más simple, pero acopla cada cambio de estado con el mantenimiento de los checkpoints.
+
+  Los checkpoints no reemplazan a la proyección `READY`: la proyección es el estado vigente de la cuenta (`AccountState`), que se lee sin recorrer el libro. Un checkpoint solo acorta la reconstrucción de una cuenta `PENDING`, y solo cuando la causa de `PENDING` no invalida también los checkpoints (por ejemplo, un desvío detectado o un cambio en la lógica de la proyección).
 - **Estado de error por cuenta.** Si una reconstrucción falla de forma persistente, la cuenta pasaría a un estado `FAILED` y respondería un error específico hasta que alguien intervenga, en lugar de reintentar en cada acceso.
 
 ## Alternativas consideradas
