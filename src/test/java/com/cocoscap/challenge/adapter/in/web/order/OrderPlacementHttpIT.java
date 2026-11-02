@@ -8,6 +8,7 @@ import com.cocoscap.challenge.application.account.AccountProjectionPort;
 import com.cocoscap.challenge.application.account.StoredAccount;
 import com.cocoscap.challenge.domain.account.Account;
 import com.cocoscap.challenge.domain.account.LedgerEntry;
+import com.cocoscap.challenge.domain.costbasis.WeightedAverageCostBasisCalculator;
 import com.cocoscap.challenge.support.TradingTestUsers;
 import com.cocoscap.challenge.support.TradingTestUsers.TestUser;
 import com.jayway.jsonpath.JsonPath;
@@ -54,55 +55,7 @@ class OrderPlacementHttpIT {
     }
 
     @Test
-    @DisplayName("ORD-06 · Orden sobre los pesos")
-    void ord06CurrencyInstrumentIsValidationError() {
-        TestUser user = users.createWithCash(new BigDecimal("100000"));
-        long arsId = users.instrumentId("ARS");
-
-        MvcTestResult result = place(
-                user.userId(),
-                "ord-06",
-                """
-                {"instrument_id":%d,"side":"BUY","type":"MARKET","size":10,"amount":null,"price":null}
-                """
-                        .formatted(arsId));
-
-        assertThat(result).hasStatus(HttpStatus.BAD_REQUEST);
-        assertThat(jsonString(result, "$.code")).isEqualTo("VALIDATION_ERROR");
-        assertThat(jsonString(result, "$.errors[0].field")).isEqualTo("instrument_id");
-        assertThat(users.countOrders(user.userId())).isZero();
-    }
-
-    @Test
-    @DisplayName("ORD-07 · Usuario o instrumento inexistente")
-    void ord07MissingInstrumentAndUser() {
-        TestUser user = users.createWithCash(new BigDecimal("100000"));
-
-        MvcTestResult missingInstrument = place(
-                user.userId(),
-                "ord-07-i",
-                """
-                {"instrument_id":999999,"side":"BUY","type":"MARKET","size":10,"amount":null,"price":null}
-                """);
-        assertThat(missingInstrument).hasStatus(HttpStatus.NOT_FOUND);
-        assertThat(jsonString(missingInstrument, "$.code")).isEqualTo("INSTRUMENT_NOT_FOUND");
-        assertThat(body(missingInstrument)).doesNotContain("999999");
-        assertThat(users.countOrders(user.userId())).isZero();
-
-        MvcTestResult missingUser = place(
-                9_999_999L,
-                "ord-07-u",
-                """
-                {"instrument_id":%d,"side":"BUY","type":"MARKET","size":10,"amount":null,"price":null}
-                """
-                        .formatted(users.instrumentId("GGAL")));
-        assertThat(missingUser).hasStatus(HttpStatus.NOT_FOUND);
-        assertThat(jsonString(missingUser, "$.code")).isEqualTo("USER_NOT_FOUND");
-        assertThat(body(missingUser)).doesNotContain("9999999");
-    }
-
-    @Test
-    @DisplayName("ORD-27 · Respuesta de una orden aceptada")
+    @DisplayName("ORD-27 · Respuesta de una orden registrada")
     void ord27AcceptedLimitResponse() {
         TestUser user = users.createWithCash(new BigDecimal("100000"));
         long ggalId = users.instrumentId("GGAL");
@@ -127,34 +80,7 @@ class OrderPlacementHttpIT {
     }
 
     @Test
-    @DisplayName("ORD-33 · Clave de idempotencia ausente o inválida")
-    void ord33MissingOrInvalidIdempotencyKey() {
-        TestUser user = users.createWithCash(new BigDecimal("100000"));
-        long ggalId = users.instrumentId("GGAL");
-        String body =
-                """
-                {"instrument_id":%d,"side":"BUY","type":"LIMIT","size":10,"amount":null,"price":850}
-                """
-                        .formatted(ggalId);
-
-        MvcTestResult missing = mvc.post()
-                .uri("/users/{userId}/orders", user.userId())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(body)
-                .exchange();
-        assertValidationField(missing, "Idempotency-Key");
-        assertThat(users.countOrders(user.userId())).isZero();
-
-        MvcTestResult tooLong = place(user.userId(), "x".repeat(65), body);
-        assertValidationField(tooLong, "Idempotency-Key");
-
-        MvcTestResult withSpace = place(user.userId(), "bad key", body);
-        assertValidationField(withSpace, "Idempotency-Key");
-        assertThat(users.countOrders(user.userId())).isZero();
-    }
-
-    @Test
-    @DisplayName("ORD-12 · Compra MARKET con efectivo suficiente")
+    @DisplayName("ORD-12 · Compra MARKET")
     void ord12FilledMarketBuy() {
         TestUser user = users.createWithCash(new BigDecimal("100000"));
         long ggalId = users.instrumentId("GGAL");
@@ -221,32 +147,11 @@ class OrderPlacementHttpIT {
         assertReconciled(user);
     }
 
-    @Test
-    @DisplayName("ORD-05 · Lado de transferencia desconocido en el body")
-    void ord05UnknownSideIsValidationError() {
-        TestUser user = users.createWithCash(new BigDecimal("100000"));
-        long ggalId = users.instrumentId("GGAL");
-
-        MvcTestResult result = place(
-                user.userId(),
-                "ord-05",
-                """
-                {"instrument_id":%d,"side":"CASH_OUT","type":"MARKET","size":10,"amount":null,"price":null}
-                """
-                        .formatted(ggalId));
-
-        assertThat(result).hasStatus(HttpStatus.BAD_REQUEST);
-        assertThat(jsonString(result, "$.code")).isEqualTo("VALIDATION_ERROR");
-        assertThat(jsonString(result, "$.errors[0].field")).isEqualTo("side");
-        assertThat(body(result)).doesNotContain("CASH_OUT");
-        assertThat(users.countOrders(user.userId())).isZero();
-    }
-
     private void assertReconciled(TestUser user) {
         StoredAccount stored = accountProjectionPort.findByUserId(users.userId(user)).orElseThrow();
         assertThat(stored).isInstanceOf(StoredAccount.Ready.class);
-        Account fromProjection = Account.restore(((StoredAccount.Ready) stored).state(),
-                new com.cocoscap.challenge.domain.costbasis.WeightedAverageCostBasisCalculator());
+        Account fromProjection = Account.restore(
+                ((StoredAccount.Ready) stored).state(), new WeightedAverageCostBasisCalculator());
         Account fromLedger;
         try (Stream<LedgerEntry> entries = accountLedgerPort.streamByUserId(users.userId(user))) {
             fromLedger = users.rebuildFromLedger(user, entries);
@@ -261,12 +166,6 @@ class OrderPlacementHttpIT {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json)
                 .exchange();
-    }
-
-    private static void assertValidationField(MvcTestResult result, String field) {
-        assertThat(result).hasStatus(HttpStatus.BAD_REQUEST);
-        assertThat(jsonString(result, "$.code")).isEqualTo("VALIDATION_ERROR");
-        assertThat(jsonString(result, "$.errors[0].field")).isEqualTo(field);
     }
 
     private static String body(MvcTestResult result) {

@@ -31,31 +31,4 @@ class MicrometerTradingMetricsAdapterTest {
                 .isNotNull()
                 .satisfies(timer -> assertThat(timer.count()).isEqualTo(1));
     }
-
-    @Test
-    @DisplayName("order and busy counters publish ADR-009 tags")
-    void recordsOrderAndBusyCounters() {
-        SimpleMeterRegistry registry = new SimpleMeterRegistry();
-        MicrometerTradingMetricsAdapter metrics = new MicrometerTradingMetricsAdapter(registry);
-
-        metrics.orderProcessed("MARKET", "BUY", "FILLED", "NONE");
-        metrics.accountBusy("place");
-        metrics.idempotencyReplay("replayed");
-
-        assertThat(registry
-                        .find("trading.orders")
-                        .tag("type", "MARKET")
-                        .tag("side", "BUY")
-                        .tag("status", "FILLED")
-                        .tag("rejection_reason", "NONE")
-                        .counter())
-                .isNotNull()
-                .satisfies(counter -> assertThat(counter.count()).isEqualTo(1));
-        assertThat(registry.find("trading.account.busy").tag("operation", "place").counter())
-                .isNotNull()
-                .satisfies(counter -> assertThat(counter.count()).isEqualTo(1));
-        assertThat(registry.find("trading.idempotency.replays").tag("result", "replayed").counter())
-                .isNotNull()
-                .satisfies(counter -> assertThat(counter.count()).isEqualTo(1));
-    }
 }

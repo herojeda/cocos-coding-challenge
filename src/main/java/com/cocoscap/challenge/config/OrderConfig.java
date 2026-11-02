@@ -5,7 +5,6 @@ import com.cocoscap.challenge.application.account.AccountForUpdateLoader;
 import com.cocoscap.challenge.application.account.AccountProjectionPort;
 import com.cocoscap.challenge.application.instrument.InstrumentLookupPort;
 import com.cocoscap.challenge.application.market.MarketDataPort;
-import com.cocoscap.challenge.application.observability.TradingMetricsPort;
 import com.cocoscap.challenge.application.order.OrderBookPort;
 import com.cocoscap.challenge.application.order.PlaceOrderUseCase;
 import java.time.Clock;
@@ -33,7 +32,6 @@ public class OrderConfig {
             OrderBookPort orderBookPort,
             InstrumentLookupPort instrumentLookupPort,
             MarketDataPort marketDataPort,
-            TradingMetricsPort tradingMetricsPort,
             Clock clock) {
         return new PlaceOrderUseCase(
                 accountForUpdateLoader,
@@ -41,7 +39,6 @@ public class OrderConfig {
                 orderBookPort,
                 instrumentLookupPort,
                 marketDataPort,
-                tradingMetricsPort,
                 clock);
     }
 }
