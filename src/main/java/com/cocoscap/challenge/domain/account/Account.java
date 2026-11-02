@@ -1,13 +1,19 @@
 package com.cocoscap.challenge.domain.account;
 
+import com.cocoscap.challenge.domain.account.AccountSnapshot.PositionSnapshot;
 import com.cocoscap.challenge.domain.costbasis.CostBasisCalculator;
+import com.cocoscap.challenge.domain.costbasis.CostBasisState;
 import com.cocoscap.challenge.domain.instrument.InstrumentId;
 import com.cocoscap.challenge.domain.order.OrderType;
 import java.math.BigDecimal;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 
 /**
@@ -32,6 +38,47 @@ public final class Account {
 
     public static Account empty(AccountId id, CostBasisCalculator costBasisCalculator) {
         return new Account(id, costBasisCalculator);
+    }
+
+    /**
+     * Restores an account from a stored photo. Does not recalculate cost or PnL. Validates
+     * {@code reservedCash >= 0}, unique instruments, and the invariants of {@link CostBasisState}
+     * and reserved quantity; does not require non-negative holdings (seed short BMA / S3).
+     */
+    public static Account restore(AccountSnapshot snapshot, CostBasisCalculator costBasisCalculator) {
+        Objects.requireNonNull(snapshot, "snapshot");
+        Objects.requireNonNull(costBasisCalculator, "costBasisCalculator");
+        if (snapshot.reservedCash().signum() < 0) {
+            throw new IllegalArgumentException("reservedCash must not be negative");
+        }
+        Account account = empty(snapshot.id(), costBasisCalculator);
+        account.cash = snapshot.cash();
+        account.reservedCash = snapshot.reservedCash();
+        Set<InstrumentId> seen = new HashSet<>();
+        for (PositionSnapshot position : snapshot.positions()) {
+            InstrumentId instrumentId = position.instrumentId();
+            if (!seen.add(instrumentId)) {
+                throw new IllegalArgumentException("duplicate instrumentId: " + instrumentId);
+            }
+            CostBasisState costBasis = new CostBasisState(
+                    position.quantity(), position.averageCost(), position.realizedPnl());
+            account.positions.put(instrumentId, Position.of(instrumentId, costBasis, position.reservedQuantity()));
+        }
+        return account;
+    }
+
+    /** Immutable photo of cash, reserved cash and positions (ordered by instrument id). */
+    public AccountSnapshot snapshot() {
+        List<PositionSnapshot> positionSnapshots = positions.values().stream()
+                .sorted(Comparator.comparingLong(position -> position.instrumentId().value()))
+                .map(position -> new PositionSnapshot(
+                        position.instrumentId(),
+                        position.quantity(),
+                        position.reservedQuantity(),
+                        position.averageCost(),
+                        position.realizedPnl()))
+                .toList();
+        return new AccountSnapshot(id, cash, reservedCash, positionSnapshots);
     }
 
     public AccountId id() {
