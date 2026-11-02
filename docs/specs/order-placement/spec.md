@@ -71,7 +71,7 @@ Distinción entre error de validación y rechazo según el supuesto [S8](../../a
 
 ### Requirement: Cantidad calculada a partir de un monto
 
-Cuando el pedido informa un monto en pesos, la cantidad DEBE calcularse como el entero inferior de `monto / precio`, usando el último precio en una orden MARKET y el precio límite en una orden LIMIT. La orden DEBE registrarse con la cantidad calculada y solo DEBE comprometer `cantidad × precio`: el excedente del monto NO DEBE reservarse ni debitarse. Si el monto no alcanza para una acción, el pedido DEBE responderse con un error de validación.
+Cuando el pedido informa un monto en pesos, la cantidad DEBE calcularse como el entero inferior de `monto / precio`, usando el último precio en una orden MARKET y el precio límite en una orden LIMIT. La orden DEBE registrarse con la cantidad calculada y con el monto pedido, y solo DEBE comprometer `cantidad × precio`: el excedente del monto NO DEBE reservarse ni debitarse. Si el monto no alcanza para una acción, el pedido DEBE responderse con un error de validación.
 
 #### Scenario: ORD-08 · Compra MARKET por monto
 
@@ -79,6 +79,7 @@ Cuando el pedido informa un monto en pesos, la cantidad DEBE calcularse como el 
 - **AND** el último precio de GGAL es 885,80
 - **WHEN** envía una orden BUY MARKET de GGAL por 10.000 ARS
 - **THEN** la orden se registra `FILLED` por 11 GGAL a 885,80
+- **AND** la orden registra el monto pedido de 10.000 ARS
 - **AND** sus pesos disponibles pasan a ser 90.256,20 ARS
 
 #### Scenario: ORD-09 · Compra LIMIT por monto
@@ -234,7 +235,7 @@ Tratamiento de la tenencia negativa según el supuesto [S3](../../assumptions.md
 
 ### Requirement: Orden MARKET sobre un instrumento sin cotización
 
-Una orden MARKET sobre un instrumento que no tiene ninguna cotización DEBE registrarse en estado `REJECTED`, sin precio de ejecución, porque no hay un precio contra el cual ejecutarla. Una orden LIMIT sobre ese instrumento DEBE procesarse normalmente, porque el precio lo informa el usuario.
+Una orden MARKET sobre un instrumento que no tiene ninguna cotización DEBE registrarse en estado `REJECTED`, sin precio de ejecución, porque no hay un precio contra el cual ejecutarla. Si la orden se pidió por monto, la cantidad no se puede calcular: la orden DEBE registrarse sin cantidad y con el monto pedido, y NO DEBE responderse con un error de validación, porque el monto no se puede comparar contra el precio de una acción. Una orden LIMIT sobre ese instrumento DEBE procesarse normalmente, porque el precio lo informa el usuario.
 
 #### Scenario: ORD-25 · Compra MARKET sin cotización
 
@@ -251,7 +252,16 @@ Una orden MARKET sobre un instrumento que no tiene ninguna cotización DEBE regi
 - **WHEN** envía una orden BUY LIMIT de 10 PGR a 50
 - **THEN** la orden se registra `NEW` por 10 PGR a 50
 
-El tratamiento de instrumentos sin cotización sigue el supuesto [S5](../../assumptions.md), confirmado por Cocos. Qué cantidad se registra en una orden MARKET por monto rechazada por falta de cotización, ya que sin precio no se puede calcular *(pendiente: definir)*.
+#### Scenario: ORD-41 · Compra MARKET por monto sin cotización
+
+- **GIVEN** un usuario con 100.000 ARS disponibles
+- **AND** PGR no tiene ninguna cotización registrada
+- **WHEN** envía una orden BUY MARKET de PGR por 10.000 ARS
+- **THEN** la orden se registra `REJECTED`, sin cantidad ni precio, con el monto pedido de 10.000 ARS
+- **AND** el motivo del rechazo es `NO_MARKET_PRICE`
+- **AND** sus pesos disponibles siguen siendo 100.000 ARS
+
+El tratamiento de instrumentos sin cotización sigue el supuesto [S5](../../assumptions.md), confirmado por Cocos. El registro sin cantidad de una orden por monto sin cotización es una decisión de diseño complementaria de S6.
 
 ### Requirement: Motivo del rechazo
 
@@ -276,7 +286,7 @@ Las órdenes `REJECTED` que ya existen en la seed no tienen motivo registrado y 
 
 ### Requirement: Registro de la orden
 
-Toda orden aceptada o rechazada DEBE quedar registrada con el usuario, el instrumento, el lado, el tipo, la cantidad, el precio, el estado, el motivo del rechazo si corresponde y la fecha y hora de envío. La respuesta DEBE devolver la orden registrada con su identificador y su estado.
+Toda orden aceptada o rechazada DEBE quedar registrada con el usuario, el instrumento, el lado, el tipo, la cantidad, el monto pedido si la orden se pidió por monto, el precio, el estado, el motivo del rechazo si corresponde y la fecha y hora de envío. La respuesta DEBE devolver la orden registrada con su identificador y su estado.
 
 #### Scenario: ORD-27 · Respuesta de una orden registrada
 
