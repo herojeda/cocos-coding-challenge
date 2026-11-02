@@ -108,6 +108,28 @@ class AccountRestoreTest {
                 .hasMessageContaining("duplicate");
     }
 
+    @Test
+    @DisplayName("snapshot normalizes cash scale so 100 equals 100.00")
+    void snapshotNormalizesCashScale() {
+        AccountSnapshot scaleZero = new AccountSnapshot(
+                ACCOUNT, new BigDecimal("100"), BigDecimal.ZERO, List.of());
+        AccountSnapshot scaleTwo = new AccountSnapshot(
+                ACCOUNT, new BigDecimal("100.00"), BigDecimal.ZERO.setScale(2), List.of());
+
+        assertThat(scaleZero).isEqualTo(scaleTwo);
+        assertThat(scaleZero.cash().scale()).isEqualTo(AccountSnapshot.CASH_SCALE);
+        assertThat(scaleZero.reservedCash().scale()).isEqualTo(AccountSnapshot.CASH_SCALE);
+    }
+
+    @Test
+    @DisplayName("snapshot rejects cash with more than two decimal places")
+    void snapshotRejectsCashWithExcessScale() {
+        assertThatThrownBy(() -> new AccountSnapshot(
+                        ACCOUNT, new BigDecimal("100.001"), BigDecimal.ZERO, List.of()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("cash");
+    }
+
     private static AccountSnapshot snapshotWith(PositionSnapshot... positions) {
         return new AccountSnapshot(ACCOUNT, BigDecimal.ZERO, BigDecimal.ZERO, List.of(positions));
     }
