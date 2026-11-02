@@ -43,8 +43,24 @@ public final class OrderPlacementPolicy {
             return rejected(newOrder, size, referencePrice, RejectionReason.INSUFFICIENT_HOLDINGS);
         }
 
-        OrderStatus status = newOrder.type() == OrderType.MARKET ? OrderStatus.FILLED : OrderStatus.NEW;
-        return new OrderPlacementDecision(newOrder, status, size, referencePrice, null);
+        if (newOrder.type() == OrderType.MARKET) {
+            return new OrderPlacementDecision(OrderDecision.filled(
+                    newOrder.userId(),
+                    newOrder.instrumentId(),
+                    newOrder.side(),
+                    newOrder.type(),
+                    size,
+                    referencePrice,
+                    newOrder.amount()));
+        }
+        return new OrderPlacementDecision(OrderDecision.accepted(
+                newOrder.userId(),
+                newOrder.instrumentId(),
+                newOrder.side(),
+                newOrder.type(),
+                size,
+                referencePrice,
+                newOrder.amount()));
     }
 
     private static BigDecimal referencePrice(NewOrder newOrder, Optional<Quote> quote) {
@@ -72,6 +88,14 @@ public final class OrderPlacementPolicy {
 
     private static OrderPlacementDecision rejected(
             NewOrder newOrder, Long size, BigDecimal price, RejectionReason reason) {
-        return new OrderPlacementDecision(newOrder, OrderStatus.REJECTED, size, price, reason);
+        return new OrderPlacementDecision(OrderDecision.rejected(
+                newOrder.userId(),
+                newOrder.instrumentId(),
+                newOrder.side(),
+                newOrder.type(),
+                size,
+                price,
+                newOrder.amount(),
+                reason));
     }
 }

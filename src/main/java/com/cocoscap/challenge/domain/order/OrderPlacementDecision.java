@@ -6,92 +6,51 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * Outcome of {@link OrderPlacementPolicy}: the order to register. Account impact is applied by
+ * Outcome of {@link OrderPlacementPolicy}: wraps the pre-insert {@link OrderDecision} and exposes
+ * helpers for account transitions. Account impact is applied by
  * {@code Account.apply(OrderPlacementDecision)} so domain packages stay acyclic (ADR-003).
  */
 public final class OrderPlacementDecision {
 
-    private final NewOrder newOrder;
-    private final OrderStatus status;
-    private final Long size;
-    private final BigDecimal price;
-    private final RejectionReason rejectionReason;
+    private final OrderDecision order;
 
-    OrderPlacementDecision(
-            NewOrder newOrder,
-            OrderStatus status,
-            Long size,
-            BigDecimal price,
-            RejectionReason rejectionReason) {
-        this.newOrder = Objects.requireNonNull(newOrder, "newOrder");
-        this.status = Objects.requireNonNull(status, "status");
-        this.size = size;
-        this.price = price;
-        this.rejectionReason = rejectionReason;
+    OrderPlacementDecision(OrderDecision order) {
+        this.order = Objects.requireNonNull(order, "order");
+    }
+
+    public OrderDecision order() {
+        return order;
     }
 
     public OrderStatus status() {
-        return status;
+        return order.status();
     }
 
     public Long size() {
-        return size;
+        return order.size();
     }
 
     public BigDecimal price() {
-        return price;
+        return order.price();
     }
 
     public RejectionReason rejectionReason() {
-        return rejectionReason;
+        return order.rejectionReason();
     }
 
     public InstrumentId instrumentId() {
-        return newOrder.instrumentId();
+        return order.instrumentId();
     }
 
     public OrderSide side() {
-        return newOrder.side();
+        return order.side();
     }
 
     public BigDecimal reservationAmount() {
-        return BigDecimal.valueOf(size).multiply(price);
+        return BigDecimal.valueOf(order.size()).multiply(order.price());
     }
 
     public Order toOrder(OrderId id, Instant datetime) {
-        return switch (status) {
-            case FILLED -> Order.filled(
-                    id,
-                    newOrder.userId(),
-                    newOrder.instrumentId(),
-                    newOrder.side(),
-                    newOrder.type(),
-                    size,
-                    price,
-                    newOrder.amount(),
-                    datetime);
-            case NEW -> Order.accepted(
-                    id,
-                    newOrder.userId(),
-                    newOrder.instrumentId(),
-                    newOrder.side(),
-                    newOrder.type(),
-                    size,
-                    price,
-                    newOrder.amount(),
-                    datetime);
-            case REJECTED -> Order.rejected(
-                    id,
-                    newOrder.userId(),
-                    newOrder.instrumentId(),
-                    newOrder.side(),
-                    newOrder.type(),
-                    size,
-                    price,
-                    newOrder.amount(),
-                    rejectionReason,
-                    datetime);
-            case CANCELLED -> throw new IllegalStateException("placement cannot produce CANCELLED");
-        };
+        return order.toOrder(id, datetime);
     }
 }
