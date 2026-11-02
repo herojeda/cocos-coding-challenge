@@ -80,6 +80,27 @@ public record NewOrder(
         return amount != null;
     }
 
+    /**
+     * SHA-256 fingerprint of instrument, side, type, size-or-amount (which one), and price
+     * (ADR-008). The user is omitted: uniqueness is already per user via the idempotency key.
+     * Money fields use the normalized scale-2 values from construction.
+     */
+    public RequestHash fingerprint() {
+        String canonical = "v1|"
+                + instrumentId.value()
+                + '|'
+                + side.name()
+                + '|'
+                + type.name()
+                + "|size="
+                + (size == null ? "" : size)
+                + "|amount="
+                + (amount == null ? "" : amount.toPlainString())
+                + "|price="
+                + (price == null ? "" : price.toPlainString());
+        return RequestHash.sha256(canonical);
+    }
+
     private static BigDecimal requireMoney(String field, BigDecimal value, int maxIntegerDigits) {
         if (value.signum() <= 0) {
             throw new NewOrderValidationException(field, field + " must be positive");
