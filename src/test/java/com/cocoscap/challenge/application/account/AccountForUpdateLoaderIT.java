@@ -4,8 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.cocoscap.challenge.PostgresTestcontainersConfiguration;
+import com.cocoscap.challenge.application.observability.AccountOperation;
 import com.cocoscap.challenge.application.observability.TradingMetricsPort;
 import com.cocoscap.challenge.domain.account.Account;
+import com.cocoscap.challenge.domain.order.OrderSide;
+import com.cocoscap.challenge.domain.order.OrderStatus;
+import com.cocoscap.challenge.domain.order.OrderType;
+import com.cocoscap.challenge.domain.order.RejectionReason;
 import com.cocoscap.challenge.domain.user.UserId;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -135,6 +140,20 @@ class AccountForUpdateLoaderIT {
         @Override
         public void projectionRebuilt(Duration duration, boolean success) {
             rebuilds.add(success);
+        }
+
+        @Override
+        public void orderProcessed(
+                com.cocoscap.challenge.domain.order.OrderType type,
+                com.cocoscap.challenge.domain.order.OrderSide side,
+                com.cocoscap.challenge.domain.order.OrderStatus status,
+                com.cocoscap.challenge.domain.order.RejectionReason rejectionReason) {
+            // unused in this IT
+        }
+
+        @Override
+        public void accountBusy(com.cocoscap.challenge.application.observability.AccountOperation operation) {
+            // unused in this IT
         }
 
         List<Boolean> rebuilds() {

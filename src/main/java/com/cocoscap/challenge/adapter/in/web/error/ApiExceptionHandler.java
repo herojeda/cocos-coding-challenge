@@ -1,5 +1,6 @@
 package com.cocoscap.challenge.adapter.in.web.error;
 
+import com.cocoscap.challenge.domain.account.AccountBusyException;
 import com.cocoscap.challenge.domain.instrument.InstrumentNotFoundException;
 import com.cocoscap.challenge.domain.order.NewOrderValidationException;
 import com.cocoscap.challenge.domain.user.UserNotFoundException;
@@ -188,6 +189,11 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         List<ValidationError> errors = List.of(new ValidationError(ex.field(), REASON_INVALID));
         return problemResponse(
                 ProblemCode.VALIDATION_ERROR, ProblemCode.VALIDATION_ERROR.status(), ex, errors, request);
+    }
+
+    @ExceptionHandler(AccountBusyException.class)
+    public ResponseEntity<Object> handleAccountBusy(AccountBusyException ex, WebRequest request) {
+        return problemResponse(ProblemCode.ACCOUNT_BUSY, ProblemCode.ACCOUNT_BUSY.status(), ex, null, request);
     }
 
     /**
