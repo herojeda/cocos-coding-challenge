@@ -22,6 +22,21 @@ public final class Position {
         this.instrumentId = Objects.requireNonNull(instrumentId, "instrumentId");
     }
 
+    /**
+     * Restores a position from stored state. Package-private: only {@link Account#restore} may
+     * call this. Does not enforce non-negative quantity (seed short BMA / S3).
+     */
+    static Position of(InstrumentId instrumentId, CostBasisState costBasis, long reservedQuantity) {
+        Objects.requireNonNull(costBasis, "costBasis");
+        if (reservedQuantity < 0) {
+            throw new IllegalArgumentException("reservedQuantity must not be negative");
+        }
+        Position position = new Position(instrumentId);
+        position.costBasis = costBasis;
+        position.reservedQuantity = reservedQuantity;
+        return position;
+    }
+
     public InstrumentId instrumentId() {
         return instrumentId;
     }
