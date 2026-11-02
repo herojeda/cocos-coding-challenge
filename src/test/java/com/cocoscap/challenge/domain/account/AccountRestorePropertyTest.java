@@ -19,8 +19,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * Property: restoring a mid-ledger snapshot and applying the suffix with public transitions yields
- * the same photo as {@link Account#rebuildFrom} over the full ledger (ADR-005 reconciliation).
+ * Property: restoring a mid-ledger state and applying the suffix with public transitions yields
+ * the same state as {@link Account#rebuildFrom} over the full ledger (ADR-005 reconciliation).
  */
 class AccountRestorePropertyTest {
 
@@ -52,10 +52,10 @@ class AccountRestorePropertyTest {
         for (int sequence = 0; sequence < SEQUENCES; sequence++) {
             List<LedgerEntry> entries = generateSequence(random, sequence % 2 == 0);
             int cut = random.nextInt(entries.size() + 1);
-            AccountSnapshot expected =
-                    Account.rebuildFrom(ACCOUNT, entries.stream(), COST_BASIS).snapshot();
+            AccountState expected =
+                    Account.rebuildFrom(ACCOUNT, entries.stream(), COST_BASIS).state();
             Account restored = Account.restore(
-                    Account.rebuildFrom(ACCOUNT, entries.subList(0, cut).stream(), COST_BASIS).snapshot(),
+                    Account.rebuildFrom(ACCOUNT, entries.subList(0, cut).stream(), COST_BASIS).state(),
                     COST_BASIS);
             boolean coveredShort = false;
             for (int i = cut; i < entries.size(); i++) {
@@ -68,7 +68,7 @@ class AccountRestorePropertyTest {
             if (coveredShort) {
                 coverShortSequences++;
             }
-            assertThat(restored.snapshot())
+            assertThat(restored.state())
                     .as("seed=%d sequence=%d cut=%d", SEED, sequence, cut)
                     .isEqualTo(expected);
         }

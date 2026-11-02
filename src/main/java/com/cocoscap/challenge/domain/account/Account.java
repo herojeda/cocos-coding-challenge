@@ -1,6 +1,6 @@
 package com.cocoscap.challenge.domain.account;
 
-import com.cocoscap.challenge.domain.account.AccountSnapshot.PositionSnapshot;
+import com.cocoscap.challenge.domain.account.AccountState.PositionState;
 import com.cocoscap.challenge.domain.costbasis.CostBasisCalculator;
 import com.cocoscap.challenge.domain.costbasis.CostBasisState;
 import com.cocoscap.challenge.domain.instrument.InstrumentId;
@@ -41,21 +41,21 @@ public final class Account {
     }
 
     /**
-     * Restores an account from a stored photo. Does not recalculate cost or PnL. Validates
+     * Restores an account from its stored state. Does not recalculate cost or PnL. Validates
      * {@code reservedCash >= 0}, unique instruments, and the invariants of {@link CostBasisState}
      * and reserved quantity; does not require non-negative holdings (seed short BMA / S3).
      */
-    public static Account restore(AccountSnapshot snapshot, CostBasisCalculator costBasisCalculator) {
-        Objects.requireNonNull(snapshot, "snapshot");
+    public static Account restore(AccountState state, CostBasisCalculator costBasisCalculator) {
+        Objects.requireNonNull(state, "state");
         Objects.requireNonNull(costBasisCalculator, "costBasisCalculator");
-        if (snapshot.reservedCash().signum() < 0) {
+        if (state.reservedCash().signum() < 0) {
             throw new IllegalArgumentException("reservedCash must not be negative");
         }
-        Account account = empty(snapshot.id(), costBasisCalculator);
-        account.cash = snapshot.cash();
-        account.reservedCash = snapshot.reservedCash();
+        Account account = empty(state.id(), costBasisCalculator);
+        account.cash = state.cash();
+        account.reservedCash = state.reservedCash();
         Set<InstrumentId> seen = new HashSet<>();
-        for (PositionSnapshot position : snapshot.positions()) {
+        for (PositionState position : state.positions()) {
             InstrumentId instrumentId = position.instrumentId();
             if (!seen.add(instrumentId)) {
                 throw new IllegalArgumentException("duplicate instrumentId: " + instrumentId);
@@ -67,18 +67,18 @@ public final class Account {
         return account;
     }
 
-    /** Immutable photo of cash, reserved cash and positions (ordered by instrument id). */
-    public AccountSnapshot snapshot() {
-        List<PositionSnapshot> positionSnapshots = positions.values().stream()
+    /** Current state as an immutable value: cash, reserved cash and positions (ordered by instrument id). */
+    public AccountState state() {
+        List<PositionState> positionStates = positions.values().stream()
                 .sorted(Comparator.comparingLong(position -> position.instrumentId().value()))
-                .map(position -> new PositionSnapshot(
+                .map(position -> new PositionState(
                         position.instrumentId(),
                         position.quantity(),
                         position.reservedQuantity(),
                         position.averageCost(),
                         position.realizedPnl()))
                 .toList();
-        return new AccountSnapshot(id, cash, reservedCash, positionSnapshots);
+        return new AccountState(id, cash, reservedCash, positionStates);
     }
 
     public AccountId id() {
