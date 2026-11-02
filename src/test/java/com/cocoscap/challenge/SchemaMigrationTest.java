@@ -30,8 +30,8 @@ class SchemaMigrationTest {
     JdbcClient jdbcClient;
 
     @Test
-    @DisplayName("All five migrations applied successfully")
-    void allFiveMigrationsApplied() {
+    @DisplayName("All six migrations applied successfully")
+    void allSixMigrationsApplied() {
         List<String> versions = jdbcClient
                 .sql(
                         """
@@ -43,7 +43,26 @@ class SchemaMigrationTest {
                 .query(String.class)
                 .list();
 
-        assertThat(versions).containsExactly("1", "2", "3", "4", "5");
+        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6");
+    }
+
+    @Test
+    @DisplayName("market_data rejects close equal to zero")
+    void marketDataRejectsZeroClose() {
+        long instrumentId = instrumentId("GGAL");
+
+        assertThatThrownBy(() -> jdbcClient
+                        .sql(
+                                """
+                                INSERT INTO market_data (
+                                    instrument_id, date, open, high, low, close, previous_close
+                                ) VALUES (
+                                    :instrumentId, '2099-01-01', 1, 1, 1, 0, 1
+                                )
+                                """)
+                        .param("instrumentId", instrumentId)
+                        .update())
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test
