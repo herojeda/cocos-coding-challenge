@@ -8,6 +8,7 @@ import com.cocoscap.challenge.PostgresTestcontainersConfiguration;
 import com.cocoscap.challenge.application.account.AccountProjectionPort;
 import com.cocoscap.challenge.application.account.StoredAccount;
 import com.cocoscap.challenge.domain.account.Account;
+import com.cocoscap.challenge.domain.account.AccountBusyException;
 import com.cocoscap.challenge.domain.account.AccountId;
 import com.cocoscap.challenge.domain.account.AccountState;
 import com.cocoscap.challenge.domain.account.AccountState.PositionState;
@@ -18,16 +19,22 @@ import com.cocoscap.challenge.domain.costbasis.WeightedAverageCostBasisCalculato
 import com.cocoscap.challenge.domain.instrument.InstrumentId;
 import com.cocoscap.challenge.domain.user.UserId;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @SpringBootTest
 @Import(PostgresTestcontainersConfiguration.class)
@@ -41,6 +48,9 @@ class JdbcAccountProjectionAdapterIT {
 
     @Autowired
     private JdbcClient jdbcClient;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @Test
     @DisplayName("Seed user 1 projection is PENDING")
@@ -205,17 +215,154 @@ class JdbcAccountProjectionAdapterIT {
 
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    @DisplayName("save requires an active transaction")
-    void saveRequiresActiveTransaction() {
+    @DisplayName("lock times out with AccountBusyException while another transaction holds it")
+    void lockTimesOutWithAccountBusyException() throws Exception {
+        long userId = insertUserCommitted("projection-lock-busy@test.com");
+        long accountId = insertAccountCommitted(userId, "20011", "10.00", "0.00", "PENDING");
+        UserId lockedUser = UserId.of(userId);
+        AccountProjectionPort shortTimeoutPort =
+                new JdbcAccountProjectionAdapter(jdbcClient, Duration.ofMillis(200));
+        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+
+        CountDownLatch holderHasLock = new CountDownLatch(1);
+        CountDownLatch holderMayFinish = new CountDownLatch(1);
+        AtomicReference<Throwable> contenderError = new AtomicReference<>();
+
+        Thread holder = new Thread(() -> tx.executeWithoutResult(status -> {
+            accountProjectionPort.lockByUserId(lockedUser);
+            holderHasLock.countDown();
+            await(holderMayFinish);
+        }));
+        Thread contender = new Thread(() -> {
+            await(holderHasLock);
+            try {
+                tx.executeWithoutResult(status -> shortTimeoutPort.lockByUserId(lockedUser));
+            } catch (Throwable ex) {
+                contenderError.set(ex);
+            } finally {
+                holderMayFinish.countDown();
+            }
+        });
+
+        try {
+            holder.start();
+            contender.start();
+            assertThat(holderHasLock.await(5, TimeUnit.SECONDS)).isTrue();
+            contender.join(5_000);
+            holder.join(5_000);
+
+            assertThat(contenderError.get())
+                    .isInstanceOf(AccountBusyException.class)
+                    .hasMessage("account lock timed out")
+                    .hasMessageNotContaining(String.valueOf(userId))
+                    .hasMessageNotContaining(String.valueOf(accountId));
+        } finally {
+            holderMayFinish.countDown();
+            holder.join(5_000);
+            contender.join(5_000);
+            deleteAccountAndUser(accountId, userId);
+        }
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DisplayName("lock waiter reads the state committed by the previous holder")
+    void lockWaiterReadsCommittedState() throws Exception {
+        long userId = insertUserCommitted("projection-lock-wait@test.com");
+        long accountId = insertAccountCommitted(userId, "20012", "10.00", "0.00", "READY");
+        UserId lockedUser = UserId.of(userId);
+        AccountState updated = new AccountState(
+                AccountId.of(accountId),
+                new BigDecimal("77.00"),
+                new BigDecimal("3.00"),
+                List.of());
+        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+
+        CountDownLatch holderHasLock = new CountDownLatch(1);
+        CountDownLatch waiterStarted = new CountDownLatch(1);
+        CountDownLatch holderMayFinish = new CountDownLatch(1);
+        AtomicReference<StoredAccount> seenByWaiter = new AtomicReference<>();
+        AtomicReference<Throwable> waiterError = new AtomicReference<>();
+
+        Thread holder = new Thread(() -> tx.executeWithoutResult(status -> {
+            accountProjectionPort.lockByUserId(lockedUser);
+            holderHasLock.countDown();
+            await(waiterStarted);
+            // Give the waiter time to block on FOR UPDATE before we write and commit.
+            sleep(150);
+            accountProjectionPort.save(updated);
+            holderMayFinish.countDown();
+        }));
+        Thread waiter = new Thread(() -> {
+            await(holderHasLock);
+            waiterStarted.countDown();
+            try {
+                tx.executeWithoutResult(status ->
+                        seenByWaiter.set(accountProjectionPort.lockByUserId(lockedUser).orElseThrow()));
+            } catch (Throwable ex) {
+                waiterError.set(ex);
+            }
+        });
+
+        try {
+            holder.start();
+            waiter.start();
+            assertThat(holderMayFinish.await(5, TimeUnit.SECONDS)).isTrue();
+            holder.join(5_000);
+            waiter.join(5_000);
+
+            assertThat(waiterError.get()).isNull();
+            assertThat(seenByWaiter.get()).isEqualTo(new StoredAccount.Ready(updated));
+        } finally {
+            holderMayFinish.countDown();
+            holder.join(5_000);
+            waiter.join(5_000);
+            deleteAccountAndUser(accountId, userId);
+        }
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DisplayName("lockByUserId and save require an active transaction")
+    void lockAndSaveRequireActiveTransaction() {
         AccountState anyState = new AccountState(
                 AccountId.of(accountIdForUser(1L)),
                 new BigDecimal("1.00"),
                 new BigDecimal("0.00"),
                 List.of());
 
+        assertThatThrownBy(() -> accountProjectionPort.lockByUserId(UserId.of(1L)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("active transaction");
         assertThatThrownBy(() -> accountProjectionPort.save(anyState))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("active transaction");
+    }
+
+    @Test
+    @DisplayName("lockByUserId returns empty when the user has no account")
+    void lockByUserIdReturnsEmptyWhenNoAccount() {
+        assertThat(accountProjectionPort.lockByUserId(UserId.of(9_999_999L))).isEmpty();
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            if (!latch.await(5, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("timed out waiting for latch");
+            }
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(ex);
+        }
+    }
+
+    private static void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(ex);
+        }
     }
 
     private String projectionStatus(long accountId) {
@@ -278,6 +425,11 @@ class JdbcAccountProjectionAdapterIT {
                 .single();
     }
 
+    private long insertUserCommitted(String email) {
+        return new TransactionTemplate(transactionManager)
+                .execute(status -> insertUser(email));
+    }
+
     private long insertAccount(
             long userId, String accountNumber, String cash, String reservedCash, String status) {
         return jdbcClient
@@ -297,6 +449,29 @@ class JdbcAccountProjectionAdapterIT {
                 .param("status", status)
                 .query(Long.class)
                 .single();
+    }
+
+    private long insertAccountCommitted(
+            long userId, String accountNumber, String cash, String reservedCash, String status) {
+        return new TransactionTemplate(transactionManager)
+                .execute(tx -> insertAccount(userId, accountNumber, cash, reservedCash, status));
+    }
+
+    private void deleteAccountAndUser(long accountId, long userId) {
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            jdbcClient
+                    .sql("DELETE FROM positions WHERE account_id = :accountId")
+                    .param("accountId", accountId)
+                    .update();
+            jdbcClient
+                    .sql("DELETE FROM accounts WHERE id = :accountId")
+                    .param("accountId", accountId)
+                    .update();
+            jdbcClient
+                    .sql("DELETE FROM users WHERE id = :userId")
+                    .param("userId", userId)
+                    .update();
+        });
     }
 
     private void insertPosition(

@@ -4,6 +4,7 @@ import com.cocoscap.challenge.adapter.out.persistence.account.JdbcAccountLedgerA
 import com.cocoscap.challenge.adapter.out.persistence.account.JdbcAccountProjectionAdapter;
 import com.cocoscap.challenge.application.account.AccountLedgerPort;
 import com.cocoscap.challenge.application.account.AccountProjectionPort;
+import java.time.Duration;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,7 +20,9 @@ public class AccountConfig {
     }
 
     @Bean
-    AccountProjectionPort accountProjectionPort(JdbcClient jdbcClient) {
-        return new JdbcAccountProjectionAdapter(jdbcClient);
+    AccountProjectionPort accountProjectionPort(
+            JdbcClient jdbcClient,
+            @Value("${cocos.persistence.account-lock-timeout}") Duration accountLockTimeout) {
+        return new JdbcAccountProjectionAdapter(jdbcClient, accountLockTimeout);
     }
 }
