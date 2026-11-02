@@ -10,8 +10,12 @@ Los errores ([ADR-007](ADR-007-error-handling.md)), la idempotencia ([ADR-008](A
 
 ### Recursos
 
-- Las rutas usan los sustantivos del lenguaje de las specs, en inglés y en plural: `/instruments`, `/orders`.
+- Las rutas usan los sustantivos del lenguaje de las specs, en inglés y en plural: `/instruments`, `/users`, `/orders`.
 - Lo que pertenece a un usuario es un subrecurso suyo, porque el usuario se identifica explícitamente en cada pedido ([S11](../assumptions.md)): `GET /users/{userId}/portfolio`. Un usuario inexistente responde `USER_NOT_FOUND`.
+- Las órdenes también son un subrecurso del usuario:
+  - **Envío:** `POST /users/{userId}/orders`. El body describe solo la orden, sin el usuario.
+  - **Cancelación:** `POST /users/{userId}/orders/{orderId}/cancel`. Es una acción sobre la orden, no un borrado: la orden sigue existiendo en estado `CANCELLED`, así que no se usa `DELETE`.
+  - Una orden de otro usuario se trata como inexistente: `ORDER_NOT_FOUND` ([S11](../assumptions.md)).
 - Los filtros de una lista son parámetros de la query sobre el recurso, no rutas aparte, y cada uno nombra el campo por el que filtra: `GET /instruments?ticker=<texto>&name=<texto>`. Los filtros presentes se combinan con Y, y sin filtros la respuesta es la colección completa. Un filtro presente pero vacío responde `VALIDATION_ERROR`.
 
 ### Orden
@@ -27,6 +31,26 @@ Los errores ([ADR-007](ADR-007-error-handling.md)), la idempotencia ([ADR-008](A
 - Un porcentaje lleva el sufijo `_pct` y se expresa en puntos porcentuales con 2 decimales (`total_return_pct`, `daily_change_pct`: −0,45% → `-0.45`).
 - Se configura una vez, con la estrategia `SNAKE_CASE` de Jackson para toda la aplicación. Los records del adaptador web usan nombres de Java en camelCase, sin anotaciones por campo.
 - Los parámetros de la query siguen la misma convención.
+
+### Representación de una orden
+
+El pedido de envío y la orden registrada usan los mismos nombres de campo:
+
+```json
+// POST /users/1/orders   (header Idempotency-Key)
+{ "instrument_id": 47, "side": "BUY", "type": "LIMIT", "size": 10, "amount": null, "price": 850.00 }
+
+// 201 Created
+{
+  "id": 1234, "instrument_id": 47, "side": "BUY", "type": "LIMIT",
+  "size": 10, "amount": null, "price": 850.00,
+  "status": "NEW", "rejection_reason": null, "datetime": "2026-11-02T20:15:00Z"
+}
+```
+
+- En el pedido, `size` y `amount` son excluyentes, y `price` solo va en una orden `LIMIT` ([order-placement](../specs/order-placement/spec.md)). Un campo ausente y uno en `null` significan lo mismo.
+- En la respuesta, todos los campos están presentes. Lo que no tiene valor va en `null` explícito: `amount` en una orden por cantidad, `price` y `size` en el rechazo por falta de cotización (ORD-25, ORD-41) y `rejection_reason` fuera de un rechazo.
+- La respuesta no lleva el header `Location`, porque no hay un endpoint para consultar una orden. Si se agrega, el header se suma sin romper el contrato.
 
 ### Listas
 
@@ -52,6 +76,7 @@ Una lista se responde como un objeto, nunca como un array en la raíz. Así se p
 ## Alternativas consideradas
 
 - **camelCase en el JSON.** Es el default de Jackson y no necesita configuración, pero cada campo de varias palabras tendría un nombre en el contrato y otro en la base.
+- **Órdenes como recurso de primer nivel** (`POST /orders`, con el usuario en el body). Es la forma más común en APIs de trading, pero rompe la regla de los subrecursos que ya sigue el portfolio, y obliga a la cancelación a recibir el usuario en el body de una acción que no tiene otro dato.
 - **Array en la raíz.** Es más simple, pero agregar la paginación o cualquier otro dato después cambia el tipo de la respuesta y rompe a los clientes.
 - **Paginación con total (`total_elements`, `total_pages`).** Cuesta un `COUNT` por pedido y deja de ser viable al pasar a un cursor.
 - **Cursor desde el principio (keyset).** Es estable aunque el catálogo cambie entre pedidos y no se degrada con el offset, pero con 66 instrumentos ninguna de las dos cosas pesa todavía. El costo se paga cuando hace falta.

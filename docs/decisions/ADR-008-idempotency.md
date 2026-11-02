@@ -14,7 +14,7 @@ La cancelación no tiene este problema: su efecto ya es idempotente. Una segunda
 
 ### Clave en el header `Idempotency-Key`
 
-`POST /orders` exige el header `Idempotency-Key`, con el nombre y la semántica del borrador de estándar de la IETF (*The Idempotency-Key HTTP Header Field*). El valor lo genera el cliente: entre 1 y 64 caracteres ASCII visibles, con un UUID como formato recomendado. Un pedido sin clave o con una clave inválida responde `VALIDATION_ERROR` ([ADR-007](ADR-007-error-handling.md)). El valor de la clave nunca se repite en una respuesta de error.
+`POST /users/{userId}/orders` ([ADR-010](ADR-010-api-contract.md)) exige el header `Idempotency-Key`, con el nombre y la semántica del borrador de estándar de la IETF (*The Idempotency-Key HTTP Header Field*). El valor lo genera el cliente: entre 1 y 64 caracteres ASCII visibles, con un UUID como formato recomendado. Un pedido sin clave o con una clave inválida responde `VALIDATION_ERROR` ([ADR-007](ADR-007-error-handling.md)). El valor de la clave nunca se repite en una respuesta de error.
 
 La clave es **obligatoria**: si fuera opcional, el cliente que se olvida de enviarla queda expuesto justo en el escenario que la clave resuelve. La cancelación no la usa.
 
@@ -80,6 +80,6 @@ placeOrder(pedido, idempotencyKey):
 ## Consecuencias
 
 - Ningún reintento de un envío puede duplicar una orden, incluso con pedidos simultáneos.
-- Cada ejemplo de invocación de `POST /orders` (Swagger, archivo `.http`, tests) tiene que incluir el header.
+- Cada ejemplo de invocación del envío (Swagger, archivo `.http`, tests) tiene que incluir el header.
 - El catálogo de errores suma `IDEMPOTENCY_KEY_REUSED` ([ADR-007](ADR-007-error-handling.md)).
 - El header `Idempotent-Replayed` tiene que exponerse en la configuración de CORS si algún día la API se consume desde un navegador.
