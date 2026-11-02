@@ -7,9 +7,10 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * Outcome of placing an order <em>before</em> it is inserted into the ledger (ADR-006): status,
- * size, price, amount and rejection reason. The use case inserts from this decision, then builds
- * the registered {@link Order} with the returned id via {@link #toOrder(OrderId, Instant)}.
+ * Outcome of {@link OrderPlacementPolicy} <em>before</em> the order is inserted into the ledger
+ * (ADR-006): status, size, price, amount and rejection reason. The use case inserts from this
+ * decision, applies it with {@code Account.apply(OrderDecision)}, then builds the registered
+ * {@link Order} with the returned id via {@link #toOrder(OrderId, Instant)}.
  */
 public record OrderDecision(
         UserId userId,
@@ -51,6 +52,8 @@ public record OrderDecision(
             }
         } else if (size <= 0) {
             throw new IllegalArgumentException("size must be positive");
+        } else if (size > NewOrder.MAX_SIZE) {
+            throw new IllegalArgumentException("size is out of range");
         }
         if (price != null && price.signum() <= 0) {
             throw new IllegalArgumentException("price must be positive");

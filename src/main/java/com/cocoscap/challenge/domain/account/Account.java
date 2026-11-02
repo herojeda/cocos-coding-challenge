@@ -4,6 +4,9 @@ import com.cocoscap.challenge.domain.account.AccountState.PositionState;
 import com.cocoscap.challenge.domain.costbasis.CostBasisCalculator;
 import com.cocoscap.challenge.domain.costbasis.CostBasisState;
 import com.cocoscap.challenge.domain.instrument.InstrumentId;
+import com.cocoscap.challenge.domain.order.OrderDecision;
+import com.cocoscap.challenge.domain.order.OrderSide;
+import com.cocoscap.challenge.domain.order.OrderStatus;
 import com.cocoscap.challenge.domain.order.OrderType;
 import java.math.BigDecimal;
 import java.util.Comparator;
@@ -104,6 +107,33 @@ public final class Account {
     public long availableQuantity(InstrumentId instrumentId) {
         Position position = positions.get(instrumentId);
         return position == null ? 0L : position.availableQuantity();
+    }
+
+    /**
+     * Applies a placement {@link OrderDecision} using the ADR-005 transitions. Rejected decisions
+     * are a no-op.
+     */
+    public void apply(OrderDecision decision) {
+        Objects.requireNonNull(decision, "decision");
+        switch (decision.status()) {
+            case FILLED -> {
+                if (decision.side() == OrderSide.BUY) {
+                    applyBuyFill(decision.instrumentId(), decision.size(), decision.price());
+                } else {
+                    applySellFill(decision.instrumentId(), decision.size(), decision.price());
+                }
+            }
+            case NEW -> {
+                if (decision.side() == OrderSide.BUY) {
+                    reserveCash(notional(decision.size(), decision.price()));
+                } else {
+                    reserveShares(decision.instrumentId(), decision.size());
+                }
+            }
+            case REJECTED, CANCELLED -> {
+                // no account impact
+            }
+        }
     }
 
     public void applyBuyFill(InstrumentId instrumentId, long quantity, BigDecimal price) {

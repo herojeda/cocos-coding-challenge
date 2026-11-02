@@ -117,6 +117,17 @@ class NewOrderValidationTest {
                 .isEqualTo("amount");
     }
 
+    @Test
+    @DisplayName("Size beyond NUMERIC(18,2) integer digits is rejected")
+    void rejectsSizeOutOfRange() {
+        assertThatThrownBy(
+                        () -> newOrder(
+                                OrderSide.SELL, OrderType.MARKET, NewOrder.MAX_SIZE + 1L, null, null))
+                .isInstanceOf(NewOrderValidationException.class)
+                .extracting(ex -> ((NewOrderValidationException) ex).field())
+                .isEqualTo("size");
+    }
+
     private static NewOrder newOrder(
             OrderSide side, OrderType type, Long size, BigDecimal amount, BigDecimal price) {
         return new NewOrder(USER, GGAL, side, type, size, amount, price);
