@@ -49,6 +49,12 @@ public class JdbcAccountProjectionAdapter implements AccountProjectionPort {
             return Optional.empty();
         }
 
+        // accounts.user_id is UNIQUE (V4, S4): every row belongs to the same account, so the account
+        // columns are taken from the first row and the remaining columns are its positions.
+        if (rows.stream().map(AccountProjectionRow::id).distinct().count() > 1) {
+            throw new IllegalStateException("more than one account for user " + userId.value());
+        }
+
         AccountProjectionRow first = rows.getFirst();
         AccountId accountId = AccountId.of(first.id());
         return switch (first.projectionStatus()) {
@@ -68,8 +74,7 @@ public class JdbcAccountProjectionAdapter implements AccountProjectionPort {
             }
             positions.add(toPositionState(row));
         }
-        return new AccountState(
-                accountId, scaleCash(first.cash()), scaleCash(first.reservedCash()), List.copyOf(positions));
+        return new AccountState(accountId, first.cash(), first.reservedCash(), List.copyOf(positions));
     }
 
     private static PositionState toPositionState(AccountProjectionRow row) {
@@ -83,10 +88,6 @@ public class JdbcAccountProjectionAdapter implements AccountProjectionPort {
                 row.reservedQuantity(),
                 averageCost,
                 realizedPnl);
-    }
-
-    private static BigDecimal scaleCash(BigDecimal value) {
-        return value.setScale(AccountState.CASH_SCALE, RoundingMode.UNNECESSARY);
     }
 
     record AccountProjectionRow(
