@@ -4,7 +4,7 @@ import com.cocoscap.challenge.domain.account.AccountState.PositionState;
 import com.cocoscap.challenge.domain.costbasis.CostBasisCalculator;
 import com.cocoscap.challenge.domain.costbasis.CostBasisState;
 import com.cocoscap.challenge.domain.instrument.InstrumentId;
-import com.cocoscap.challenge.domain.order.OrderPlacementDecision;
+import com.cocoscap.challenge.domain.order.OrderDecision;
 import com.cocoscap.challenge.domain.order.OrderSide;
 import com.cocoscap.challenge.domain.order.OrderStatus;
 import com.cocoscap.challenge.domain.order.OrderType;
@@ -110,9 +110,10 @@ public final class Account {
     }
 
     /**
-     * Applies a placement decision using the ADR-005 transitions. Rejected decisions are a no-op.
+     * Applies a placement {@link OrderDecision} using the ADR-005 transitions. Rejected decisions
+     * are a no-op.
      */
-    public void apply(OrderPlacementDecision decision) {
+    public void apply(OrderDecision decision) {
         Objects.requireNonNull(decision, "decision");
         switch (decision.status()) {
             case FILLED -> {
@@ -124,7 +125,7 @@ public final class Account {
             }
             case NEW -> {
                 if (decision.side() == OrderSide.BUY) {
-                    reserveCash(decision.reservationAmount());
+                    reserveCash(notional(decision.size(), decision.price()));
                 } else {
                     reserveShares(decision.instrumentId(), decision.size());
                 }

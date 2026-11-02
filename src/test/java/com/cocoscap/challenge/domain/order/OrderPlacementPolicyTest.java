@@ -37,7 +37,7 @@ class OrderPlacementPolicyTest {
     @DisplayName("ORD-08 · Compra MARKET por monto")
     void ord08() {
         Account account = cashAccount("100000");
-        OrderPlacementDecision decision = decide(
+        OrderDecision decision = decide(
                 buyMarketAmount(GGAL, "10000"), account, Optional.of(quote(GGAL, GGAL_CLOSE)));
         Order order = orderOf(decision);
 
@@ -52,7 +52,7 @@ class OrderPlacementPolicyTest {
     @DisplayName("ORD-09 · Compra LIMIT por monto")
     void ord09() {
         Account account = cashAccount("100000");
-        OrderPlacementDecision decision =
+        OrderDecision decision =
                 decide(buyLimitAmount(GGAL, "900", "10000"), account, Optional.empty());
         Order order = orderOf(decision);
 
@@ -67,7 +67,7 @@ class OrderPlacementPolicyTest {
     @DisplayName("ORD-10 · Venta MARKET por monto")
     void ord10() {
         Account account = pampAccount(40);
-        OrderPlacementDecision decision = decide(
+        OrderDecision decision = decide(
                 sellMarketAmount(PAMP, "5000"), account, Optional.of(quote(PAMP, PAMP_CLOSE)));
         Order order = orderOf(decision);
 
@@ -110,7 +110,7 @@ class OrderPlacementPolicyTest {
     @DisplayName("ORD-12 · Compra MARKET")
     void ord12() {
         Account account = cashAccount("100000");
-        OrderPlacementDecision decision =
+        OrderDecision decision =
                 decide(buyMarketSize(GGAL, 10L), account, Optional.of(quote(GGAL, GGAL_CLOSE)));
         Order order = orderOf(decision);
 
@@ -127,7 +127,7 @@ class OrderPlacementPolicyTest {
     void ord13() {
         Account account = pampAccount(40);
         BigDecimal cashBefore = account.cash();
-        OrderPlacementDecision decision =
+        OrderDecision decision =
                 decide(sellMarketSize(PAMP, 10L), account, Optional.of(quote(PAMP, PAMP_CLOSE)));
         Order order = orderOf(decision);
 
@@ -143,7 +143,7 @@ class OrderPlacementPolicyTest {
     @DisplayName("ORD-14 · Compra LIMIT")
     void ord14() {
         Account account = cashAccount("100000");
-        OrderPlacementDecision decision =
+        OrderDecision decision =
                 decide(buyLimitSize(GGAL, 10L, "850"), account, Optional.empty());
         Order order = orderOf(decision);
 
@@ -160,7 +160,7 @@ class OrderPlacementPolicyTest {
     @DisplayName("ORD-15 · Compra LIMIT por encima del último precio")
     void ord15() {
         Account account = cashAccount("100000");
-        OrderPlacementDecision decision = decide(
+        OrderDecision decision = decide(
                 buyLimitSize(GGAL, 10L, "900"), account, Optional.of(quote(GGAL, GGAL_CLOSE)));
         Order order = orderOf(decision);
 
@@ -174,7 +174,7 @@ class OrderPlacementPolicyTest {
     @DisplayName("ORD-16 · Venta LIMIT")
     void ord16() {
         Account account = pampAccount(40);
-        OrderPlacementDecision decision =
+        OrderDecision decision =
                 decide(sellLimitSize(PAMP, 15L, "1000"), account, Optional.empty());
         Order order = orderOf(decision);
 
@@ -190,7 +190,7 @@ class OrderPlacementPolicyTest {
     @DisplayName("ORD-17 · Compra MARKET sin pesos suficientes")
     void ord17() {
         Account account = cashAccount("100000");
-        OrderPlacementDecision decision =
+        OrderDecision decision =
                 decide(buyMarketSize(GGAL, 200L), account, Optional.of(quote(GGAL, GGAL_CLOSE)));
         Order order = orderOf(decision);
 
@@ -205,7 +205,7 @@ class OrderPlacementPolicyTest {
     void ord18() {
         Account account = cashAccount("100000");
         account.reserveCash(new BigDecimal("90000"));
-        OrderPlacementDecision decision =
+        OrderDecision decision =
                 decide(buyMarketSize(GGAL, 20L), account, Optional.of(quote(GGAL, GGAL_CLOSE)));
         Order order = orderOf(decision);
 
@@ -217,7 +217,7 @@ class OrderPlacementPolicyTest {
     @DisplayName("ORD-19 · Compra por exactamente el disponible")
     void ord19() {
         Account account = cashAccount("8858");
-        OrderPlacementDecision decision =
+        OrderDecision decision =
                 decide(buyMarketSize(GGAL, 10L), account, Optional.of(quote(GGAL, GGAL_CLOSE)));
         Order order = orderOf(decision);
 
@@ -230,7 +230,7 @@ class OrderPlacementPolicyTest {
     @DisplayName("ORD-20 · Compra LIMIT sin pesos suficientes")
     void ord20() {
         Account account = cashAccount("5000");
-        OrderPlacementDecision decision =
+        OrderDecision decision =
                 decide(buyLimitSize(GGAL, 10L, "850"), account, Optional.empty());
         Order order = orderOf(decision);
 
@@ -244,7 +244,7 @@ class OrderPlacementPolicyTest {
     @DisplayName("ORD-21 · Venta de más acciones que la tenencia")
     void ord21() {
         Account account = pampAccount(40);
-        OrderPlacementDecision decision =
+        OrderDecision decision =
                 decide(sellMarketSize(PAMP, 50L), account, Optional.of(quote(PAMP, PAMP_CLOSE)));
         Order order = orderOf(decision);
 
@@ -259,7 +259,7 @@ class OrderPlacementPolicyTest {
     void ord22() {
         Account account = pampAccount(40);
         account.reserveShares(PAMP, 30L);
-        OrderPlacementDecision decision =
+        OrderDecision decision =
                 decide(sellMarketSize(PAMP, 20L), account, Optional.of(quote(PAMP, PAMP_CLOSE)));
         Order order = orderOf(decision);
 
@@ -272,7 +272,7 @@ class OrderPlacementPolicyTest {
     void ord23() {
         Account account = Account.rebuildFrom(
                 ACCOUNT_ID, User1SeedLedgerFixture.entries().stream(), COST_BASIS);
-        OrderPlacementDecision decision =
+        OrderDecision decision =
                 decide(sellMarketSize(BMA, 1L), account, Optional.of(quote(BMA, "1530")));
         Order order = orderOf(decision);
 
@@ -284,7 +284,7 @@ class OrderPlacementPolicyTest {
     @DisplayName("ORD-24 · Venta de un instrumento que no tiene")
     void ord24() {
         Account account = cashAccount("100000");
-        OrderPlacementDecision decision =
+        OrderDecision decision =
                 decide(sellLimitSize(GGAL, 5L, "900"), account, Optional.empty());
         Order order = orderOf(decision);
 
@@ -296,7 +296,7 @@ class OrderPlacementPolicyTest {
     @DisplayName("ORD-25 · Compra MARKET sin cotización")
     void ord25() {
         Account account = cashAccount("100000");
-        OrderPlacementDecision decision = decide(buyMarketSize(PGR, 10L), account, Optional.empty());
+        OrderDecision decision = decide(buyMarketSize(PGR, 10L), account, Optional.empty());
         Order order = orderOf(decision);
 
         assertThat(order.status()).isEqualTo(OrderStatus.REJECTED);
@@ -308,7 +308,7 @@ class OrderPlacementPolicyTest {
     @DisplayName("ORD-26 · Compra LIMIT sin cotización")
     void ord26() {
         Account account = cashAccount("100000");
-        OrderPlacementDecision decision =
+        OrderDecision decision =
                 decide(buyLimitSize(PGR, 10L, "50"), account, Optional.empty());
         Order order = orderOf(decision);
 
@@ -341,7 +341,7 @@ class OrderPlacementPolicyTest {
     @DisplayName("ORD-41 · Compra MARKET por monto sin cotización")
     void ord41() {
         Account account = cashAccount("100000");
-        OrderPlacementDecision decision =
+        OrderDecision decision =
                 decide(buyMarketAmount(PGR, "10000"), account, Optional.empty());
         Order order = orderOf(decision);
 
@@ -354,11 +354,11 @@ class OrderPlacementPolicyTest {
         assertThat(account.availableCash()).isEqualByComparingTo("100000");
     }
 
-    private static Order orderOf(OrderPlacementDecision decision) {
+    private static Order orderOf(OrderDecision decision) {
         return decision.toOrder(ORDER_ID, PLACED_AT);
     }
 
-    private static OrderPlacementDecision decide(
+    private static OrderDecision decide(
             NewOrder newOrder, Account account, Optional<Quote> quote) {
         return OrderPlacementPolicy.decide(
                 newOrder,

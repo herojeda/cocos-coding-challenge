@@ -12,13 +12,13 @@ import java.util.Optional;
  *
  * <p>Takes available cash and shares as values so the {@code order} package does not depend on
  * {@code account} (ADR-003: no cycles between domain subpackages). The caller reads them from
- * {@code Account} and applies the decision with {@code Account.apply(OrderPlacementDecision)}.
+ * {@code Account} and applies the {@link OrderDecision} with {@code Account.apply(OrderDecision)}.
  */
 public final class OrderPlacementPolicy {
 
     private OrderPlacementPolicy() {}
 
-    public static OrderPlacementDecision decide(
+    public static OrderDecision decide(
             NewOrder newOrder,
             BigDecimal availableCash,
             long availableQuantity,
@@ -44,23 +44,23 @@ public final class OrderPlacementPolicy {
         }
 
         if (newOrder.type() == OrderType.MARKET) {
-            return new OrderPlacementDecision(OrderDecision.filled(
+            return OrderDecision.filled(
                     newOrder.userId(),
                     newOrder.instrumentId(),
                     newOrder.side(),
                     newOrder.type(),
                     size,
                     referencePrice,
-                    newOrder.amount()));
+                    newOrder.amount());
         }
-        return new OrderPlacementDecision(OrderDecision.accepted(
+        return OrderDecision.accepted(
                 newOrder.userId(),
                 newOrder.instrumentId(),
                 newOrder.side(),
                 newOrder.type(),
                 size,
                 referencePrice,
-                newOrder.amount()));
+                newOrder.amount());
     }
 
     private static BigDecimal referencePrice(NewOrder newOrder, Optional<Quote> quote) {
@@ -96,9 +96,9 @@ public final class OrderPlacementPolicy {
         return size;
     }
 
-    private static OrderPlacementDecision rejected(
+    private static OrderDecision rejected(
             NewOrder newOrder, Long size, BigDecimal price, RejectionReason reason) {
-        return new OrderPlacementDecision(OrderDecision.rejected(
+        return OrderDecision.rejected(
                 newOrder.userId(),
                 newOrder.instrumentId(),
                 newOrder.side(),
@@ -106,6 +106,6 @@ public final class OrderPlacementPolicy {
                 size,
                 price,
                 newOrder.amount(),
-                reason));
+                reason);
     }
 }
