@@ -7,8 +7,9 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * Ledger order created only through factories for valid initial statuses: {@code FILLED},
- * {@code NEW} or {@code REJECTED} with a reason. Cancellation is out of scope here.
+ * Registered ledger order: always has an {@link OrderId}. Placement produces an
+ * {@link OrderDecision} first; after insert, {@link OrderDecision#toOrder(OrderId, Instant)}
+ * builds this type. Factories below are for tests and reconstruction of already-persisted rows.
  */
 public record Order(
         OrderId id,
@@ -25,36 +26,10 @@ public record Order(
 
     public Order {
         Objects.requireNonNull(id, "id");
-        Objects.requireNonNull(userId, "userId");
-        Objects.requireNonNull(instrumentId, "instrumentId");
-        Objects.requireNonNull(side, "side");
-        Objects.requireNonNull(type, "type");
-        Objects.requireNonNull(status, "status");
         Objects.requireNonNull(datetime, "datetime");
-        if (side != OrderSide.BUY && side != OrderSide.SELL) {
-            throw new IllegalArgumentException("side must be BUY or SELL");
-        }
-        if (status == OrderStatus.REJECTED) {
-            Objects.requireNonNull(rejectionReason, "rejectionReason");
-        } else if (rejectionReason != null) {
-            throw new IllegalArgumentException("rejectionReason is only allowed when REJECTED");
-        }
-        if (size == null) {
-            if (status != OrderStatus.REJECTED
-                    || rejectionReason != RejectionReason.NO_MARKET_PRICE
-                    || amount == null) {
-                throw new IllegalArgumentException(
-                        "size may be null only for NO_MARKET_PRICE rejections with a requested amount");
-            }
-        } else if (size <= 0) {
-            throw new IllegalArgumentException("size must be positive");
-        }
-        if (price != null && price.signum() <= 0) {
-            throw new IllegalArgumentException("price must be positive");
-        }
-        if (amount != null && amount.signum() <= 0) {
-            throw new IllegalArgumentException("amount must be positive");
-        }
+        // Reuse OrderDecision invariants for the business fields.
+        new OrderDecision(
+                userId, instrumentId, side, type, size, price, amount, status, rejectionReason);
     }
 
     public static Order filled(
@@ -67,9 +42,8 @@ public record Order(
             BigDecimal price,
             BigDecimal amount,
             Instant datetime) {
-        Objects.requireNonNull(price, "price");
-        return new Order(
-                id, userId, instrumentId, side, type, size, price, amount, OrderStatus.FILLED, null, datetime);
+        return OrderDecision.filled(userId, instrumentId, side, type, size, price, amount)
+                .toOrder(id, datetime);
     }
 
     public static Order accepted(
@@ -82,12 +56,8 @@ public record Order(
             BigDecimal price,
             BigDecimal amount,
             Instant datetime) {
-        Objects.requireNonNull(price, "price");
-        if (type != OrderType.LIMIT) {
-            throw new IllegalArgumentException("accepted orders must be LIMIT");
-        }
-        return new Order(
-                id, userId, instrumentId, side, type, size, price, amount, OrderStatus.NEW, null, datetime);
+        return OrderDecision.accepted(userId, instrumentId, side, type, size, price, amount)
+                .toOrder(id, datetime);
     }
 
     public static Order rejected(
@@ -101,17 +71,8 @@ public record Order(
             BigDecimal amount,
             RejectionReason rejectionReason,
             Instant datetime) {
-        return new Order(
-                id,
-                userId,
-                instrumentId,
-                side,
-                type,
-                size,
-                price,
-                amount,
-                OrderStatus.REJECTED,
-                rejectionReason,
-                datetime);
+        return OrderDecision.rejected(
+                        userId, instrumentId, side, type, size, price, amount, rejectionReason)
+                .toOrder(id, datetime);
     }
 }

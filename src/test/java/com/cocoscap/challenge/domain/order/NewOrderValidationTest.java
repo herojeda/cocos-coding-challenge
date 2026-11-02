@@ -1,5 +1,6 @@
 package com.cocoscap.challenge.domain.order;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.cocoscap.challenge.domain.instrument.InstrumentId;
@@ -63,6 +64,57 @@ class NewOrderValidationTest {
                 .isInstanceOf(NewOrderValidationException.class)
                 .extracting(ex -> ((NewOrderValidationException) ex).field())
                 .isEqualTo("side");
+    }
+
+    @Test
+    @DisplayName("LIMIT price with more than 2 decimal places is rejected")
+    void rejectsPriceWithExtraScale() {
+        assertThatThrownBy(
+                        () -> newOrder(
+                                OrderSide.BUY, OrderType.LIMIT, 10L, null, new BigDecimal("850.005")))
+                .isInstanceOf(NewOrderValidationException.class)
+                .extracting(ex -> ((NewOrderValidationException) ex).field())
+                .isEqualTo("price");
+    }
+
+    @Test
+    @DisplayName("LIMIT price 850 and 850.00 normalize to the same value")
+    void normalizesPriceScale() {
+        NewOrder asInteger = newOrder(OrderSide.BUY, OrderType.LIMIT, 10L, null, new BigDecimal("850"));
+        NewOrder asScaled =
+                newOrder(OrderSide.BUY, OrderType.LIMIT, 10L, null, new BigDecimal("850.00"));
+        assertThat(asInteger.price()).isEqualByComparingTo(asScaled.price());
+        assertThat(asInteger.price().scale()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("LIMIT price beyond NUMERIC(10,2) is rejected")
+    void rejectsPriceOutOfRange() {
+        assertThatThrownBy(
+                        () -> newOrder(
+                                OrderSide.BUY,
+                                OrderType.LIMIT,
+                                10L,
+                                null,
+                                new BigDecimal("100000000.00")))
+                .isInstanceOf(NewOrderValidationException.class)
+                .extracting(ex -> ((NewOrderValidationException) ex).field())
+                .isEqualTo("price");
+    }
+
+    @Test
+    @DisplayName("Amount beyond NUMERIC(18,2) is rejected")
+    void rejectsAmountOutOfRange() {
+        assertThatThrownBy(
+                        () -> newOrder(
+                                OrderSide.BUY,
+                                OrderType.MARKET,
+                                null,
+                                new BigDecimal("100000000000000000.00"),
+                                null))
+                .isInstanceOf(NewOrderValidationException.class)
+                .extracting(ex -> ((NewOrderValidationException) ex).field())
+                .isEqualTo("amount");
     }
 
     private static NewOrder newOrder(

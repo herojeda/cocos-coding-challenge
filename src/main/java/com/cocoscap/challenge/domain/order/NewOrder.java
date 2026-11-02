@@ -9,6 +9,10 @@ import java.util.Objects;
 /**
  * Validated placement pedido: exactly one of size or amount, LIMIT with price, MARKET without
  * (ORD-01–ORD-05). Instrument existence and {@code CURRENCY} checks stay in the use case.
+ *
+ * <p>Money fields match the column limits: {@code amount} is {@code NUMERIC(18,2)} and
+ * {@code price} is {@code NUMERIC(10,2)}. Values are normalized to scale 2 with
+ * {@link RoundingMode#UNNECESSARY} so a silent DB round cannot diverge from the reservation.
  */
 public record NewOrder(
         UserId userId,
@@ -20,6 +24,10 @@ public record NewOrder(
         BigDecimal price) {
 
     private static final int MONEY_SCALE = 2;
+    /** {@code NUMERIC(18,2)} → at most 16 digits before the decimal. */
+    private static final int AMOUNT_MAX_INTEGER_DIGITS = 16;
+    /** {@code NUMERIC(10,2)} → at most 8 digits before the decimal. */
+    private static final int PRICE_MAX_INTEGER_DIGITS = 8;
 
     public NewOrder {
         Objects.requireNonNull(userId, "userId");
@@ -41,24 +49,14 @@ public record NewOrder(
             throw new NewOrderValidationException("size", "size must be positive");
         }
         if (hasAmount) {
-            if (amount.signum() <= 0) {
-                throw new NewOrderValidationException("amount", "amount must be positive");
-            }
-            try {
-                amount = amount.setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
-            } catch (ArithmeticException ex) {
-                throw new NewOrderValidationException(
-                        "amount", "amount must have at most " + MONEY_SCALE + " decimal places");
-            }
+            amount = requireMoney("amount", amount, AMOUNT_MAX_INTEGER_DIGITS);
         }
 
         if (type == OrderType.LIMIT) {
             if (price == null) {
                 throw new NewOrderValidationException("price", "LIMIT orders require a price");
             }
-            if (price.signum() <= 0) {
-                throw new NewOrderValidationException("price", "price must be positive");
-            }
+            price = requireMoney("price", price, PRICE_MAX_INTEGER_DIGITS);
         } else if (type == OrderType.MARKET) {
             if (price != null) {
                 throw new NewOrderValidationException("price", "MARKET orders must not include a price");
@@ -70,5 +68,23 @@ public record NewOrder(
 
     public boolean byAmount() {
         return amount != null;
+    }
+
+    private static BigDecimal requireMoney(String field, BigDecimal value, int maxIntegerDigits) {
+        if (value.signum() <= 0) {
+            throw new NewOrderValidationException(field, field + " must be positive");
+        }
+        BigDecimal normalized;
+        try {
+            normalized = value.setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
+        } catch (ArithmeticException ex) {
+            throw new NewOrderValidationException(
+                    field, field + " must have at most " + MONEY_SCALE + " decimal places");
+        }
+        int integerDigits = normalized.precision() - normalized.scale();
+        if (integerDigits > maxIntegerDigits) {
+            throw new NewOrderValidationException(field, field + " is out of range");
+        }
+        return normalized;
     }
 }
