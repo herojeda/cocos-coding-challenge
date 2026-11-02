@@ -30,8 +30,10 @@ class AccountRestorePropertyTest {
     private static final AccountId ACCOUNT = AccountId.of(1L);
     private static final CostBasisCalculator COST_BASIS = new WeightedAverageCostBasisCalculator();
     private static final InstrumentId ARS = User1SeedLedgerFixture.ARS;
+    private static final InstrumentId BMA = User1SeedLedgerFixture.BMA;
+    /** Includes BMA so seed-prefixed sequences can cover the short (PF-17) after restore. */
     private static final InstrumentId[] INSTRUMENTS = {
-        InstrumentId.of(101L), InstrumentId.of(102L), InstrumentId.of(103L)
+        BMA, InstrumentId.of(102L), InstrumentId.of(103L)
     };
     /** Prices chosen so weighted averages can produce repeating decimals (scales 6 and 2). */
     private static final BigDecimal[] PRICES = {
@@ -46,6 +48,7 @@ class AccountRestorePropertyTest {
     @DisplayName("Property · restored incremental path equals rebuild from the ledger")
     void restoredIncrementalPathEqualsRebuildFromLedger() {
         Random random = new Random(SEED);
+        int coverShortSequences = 0;
         for (int sequence = 0; sequence < SEQUENCES; sequence++) {
             List<LedgerEntry> entries = generateSequence(random, sequence % 2 == 0);
             int cut = random.nextInt(entries.size() + 1);
@@ -54,13 +57,34 @@ class AccountRestorePropertyTest {
             Account restored = Account.restore(
                     Account.rebuildFrom(ACCOUNT, entries.subList(0, cut).stream(), COST_BASIS).snapshot(),
                     COST_BASIS);
+            boolean coveredShort = false;
             for (int i = cut; i < entries.size(); i++) {
-                applyIncremental(restored, entries.get(i));
+                LedgerEntry entry = entries.get(i);
+                if (isBmaBuyFill(entry) && bmaQuantity(restored) < 0) {
+                    coveredShort = true;
+                }
+                applyIncremental(restored, entry);
+            }
+            if (coveredShort) {
+                coverShortSequences++;
             }
             assertThat(restored.snapshot())
                     .as("seed=%d sequence=%d cut=%d", SEED, sequence, cut)
                     .isEqualTo(expected);
         }
+        assertThat(coverShortSequences)
+                .as("seed=%d: BMA cover-short buys on restored path", SEED)
+                .isPositive();
+    }
+
+    private static boolean isBmaBuyFill(LedgerEntry entry) {
+        return entry.status() == OrderStatus.FILLED
+                && entry.side() == OrderSide.BUY
+                && entry.instrumentId().equals(BMA);
+    }
+
+    private static long bmaQuantity(Account account) {
+        return account.position(BMA).map(Position::quantity).orElse(0L);
     }
 
     private static List<LedgerEntry> generateSequence(Random random, boolean withSeedPrefix) {
