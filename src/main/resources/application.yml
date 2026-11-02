@@ -40,6 +40,9 @@ jdbc:
     include-parameter-values: false
 
 # ADR-005: bounded JDBC fetch size for ledger reconstruction streams.
+# ADR-006: max wait for the account-row pessimistic lock (PostgreSQL lock_timeout).
 cocos:
   persistence:
     ledger-fetch-size: 500
+    account-lock-timeout: 2s
+

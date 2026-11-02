@@ -19,7 +19,9 @@ public class AccountConfig {
     }
 
     @Bean
-    AccountProjectionPort accountProjectionPort(JdbcClient jdbcClient) {
-        return new JdbcAccountProjectionAdapter(jdbcClient);
+    AccountProjectionPort accountProjectionPort(
+            JdbcClient jdbcClient,
+            @Value("${cocos.persistence.account-lock-timeout}") String accountLockTimeout) {
+        return new JdbcAccountProjectionAdapter(jdbcClient, accountLockTimeout);
     }
 }

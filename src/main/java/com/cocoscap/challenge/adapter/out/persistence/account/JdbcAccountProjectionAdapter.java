@@ -2,6 +2,7 @@ package com.cocoscap.challenge.adapter.out.persistence.account;
 
 import com.cocoscap.challenge.application.account.AccountProjectionPort;
 import com.cocoscap.challenge.application.account.StoredAccount;
+import com.cocoscap.challenge.domain.account.AccountBusyException;
 import com.cocoscap.challenge.domain.account.AccountId;
 import com.cocoscap.challenge.domain.account.AccountState;
 import com.cocoscap.challenge.domain.account.AccountState.PositionState;
@@ -10,62 +11,89 @@ import com.cocoscap.challenge.domain.instrument.InstrumentId;
 import com.cocoscap.challenge.domain.user.UserId;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import org.springframework.dao.DataAccessException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * Reads and writes {@code accounts} / {@code positions}. Reads join positions only when the
- * projection is {@code READY}. Writes persist the full {@link AccountState} and mark the account
- * {@code READY}.
+ * projection is {@code READY}. Writes take the account-row lock ({@code FOR UPDATE OF a}) and
+ * persist the full {@link AccountState}.
  */
 public class JdbcAccountProjectionAdapter implements AccountProjectionPort {
 
-    private final JdbcClient jdbcClient;
+    /** PostgreSQL SQLState for {@code lock_timeout} (see ADR-006 / persistence.mdc). */
+    private static final String LOCK_NOT_AVAILABLE = "55P03";
 
-    public JdbcAccountProjectionAdapter(JdbcClient jdbcClient) {
-        this.jdbcClient = jdbcClient;
+    private static final String SELECT_BY_USER_ID =
+            """
+            SELECT a.id, a.cash, a.reserved_cash, a.projection_status,
+                   p.instrument_id, p.quantity, p.reserved_quantity,
+                   p.average_cost, p.realized_pnl
+            FROM accounts a
+            LEFT JOIN positions p
+              ON p.account_id = a.id AND a.projection_status = 'READY'
+            WHERE a.user_id = :userId
+            ORDER BY p.instrument_id
+            """;
+
+    private final JdbcClient jdbcClient;
+    private final String accountLockTimeout;
+
+    public JdbcAccountProjectionAdapter(JdbcClient jdbcClient, String accountLockTimeout) {
+        this.jdbcClient = Objects.requireNonNull(jdbcClient, "jdbcClient");
+        this.accountLockTimeout = requireLockTimeout(accountLockTimeout);
+    }
+
+    private static String requireLockTimeout(String accountLockTimeout) {
+        Objects.requireNonNull(accountLockTimeout, "accountLockTimeout");
+        if (accountLockTimeout.isBlank()) {
+            throw new IllegalArgumentException("accountLockTimeout must not be blank");
+        }
+        return accountLockTimeout;
     }
 
     @Override
     public Optional<StoredAccount> findByUserId(UserId userId) {
-        List<AccountProjectionRow> rows = jdbcClient
-                .sql(
-                        """
-                        SELECT a.id, a.cash, a.reserved_cash, a.projection_status,
-                               p.instrument_id, p.quantity, p.reserved_quantity,
-                               p.average_cost, p.realized_pnl
-                        FROM accounts a
-                        LEFT JOIN positions p
-                          ON p.account_id = a.id AND a.projection_status = 'READY'
-                        WHERE a.user_id = :userId
-                        ORDER BY p.instrument_id
-                        """)
-                .param("userId", userId.value())
-                .query(AccountProjectionRow.class)
-                .list();
+        return toStoredAccount(selectByUserId(userId, false), userId);
+    }
 
-        if (rows.isEmpty()) {
-            return Optional.empty();
+    @Override
+    public Optional<StoredAccount> lockByUserId(UserId userId) {
+        requireActiveTransaction("account lock");
+        jdbcClient
+                .sql("SELECT set_config('lock_timeout', :timeout, true)")
+                .param("timeout", accountLockTimeout)
+                .query(String.class)
+                .single();
+        try {
+            return toStoredAccount(selectByUserId(userId, true), userId);
+        } catch (DataAccessException ex) {
+            if (isLockTimeout(ex)) {
+                throw new AccountBusyException(ex);
+            }
+            throw ex;
         }
+    }
 
-        // accounts.user_id is UNIQUE (V4, S4): every row belongs to the same account, so the account
-        // columns are taken from the first row and the remaining columns are its positions.
-        if (rows.stream().map(AccountProjectionRow::id).distinct().count() > 1) {
-            throw new IllegalStateException("more than one account for user " + userId.value());
+    /**
+     * Spring maps {@code 55P03} to {@link PessimisticLockingFailureException} when the PostgreSQL
+     * error-code translator is active; otherwise the same SQLState may surface as a generic
+     * {@link DataAccessException}. Both paths mean the account lock timed out.
+     */
+    private static boolean isLockTimeout(DataAccessException ex) {
+        if (ex instanceof PessimisticLockingFailureException) {
+            return true;
         }
-
-        AccountProjectionRow first = rows.getFirst();
-        AccountId accountId = AccountId.of(first.id());
-        return switch (first.projectionStatus()) {
-            case "PENDING" -> Optional.of(new StoredAccount.Pending(accountId));
-            case "READY" -> Optional.of(new StoredAccount.Ready(toState(accountId, rows)));
-            default -> throw new IllegalStateException(
-                    "unknown projection_status: " + first.projectionStatus());
-        };
+        Throwable cause = ex.getMostSpecificCause();
+        return cause instanceof SQLException sqlException
+                && LOCK_NOT_AVAILABLE.equals(sqlException.getSQLState());
     }
 
     @Override
@@ -93,6 +121,36 @@ public class JdbcAccountProjectionAdapter implements AccountProjectionPort {
 
         deletePositionsNotInState(state);
         upsertPositions(state);
+    }
+
+    private List<AccountProjectionRow> selectByUserId(UserId userId, boolean forUpdate) {
+        String sql = forUpdate ? SELECT_BY_USER_ID + " FOR UPDATE OF a" : SELECT_BY_USER_ID;
+        return jdbcClient
+                .sql(sql)
+                .param("userId", userId.value())
+                .query(AccountProjectionRow.class)
+                .list();
+    }
+
+    private static Optional<StoredAccount> toStoredAccount(List<AccountProjectionRow> rows, UserId userId) {
+        if (rows.isEmpty()) {
+            return Optional.empty();
+        }
+
+        // accounts.user_id is UNIQUE (V4, S4): every row belongs to the same account, so the account
+        // columns are taken from the first row and the remaining columns are its positions.
+        if (rows.stream().map(AccountProjectionRow::id).distinct().count() > 1) {
+            throw new IllegalStateException("more than one account for user " + userId.value());
+        }
+
+        AccountProjectionRow first = rows.getFirst();
+        AccountId accountId = AccountId.of(first.id());
+        return switch (first.projectionStatus()) {
+            case "PENDING" -> Optional.of(new StoredAccount.Pending(accountId));
+            case "READY" -> Optional.of(new StoredAccount.Ready(toState(accountId, rows)));
+            default -> throw new IllegalStateException(
+                    "unknown projection_status: " + first.projectionStatus());
+        };
     }
 
     private static AccountState toState(AccountId accountId, List<AccountProjectionRow> rows) {

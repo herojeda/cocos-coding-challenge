@@ -16,10 +16,19 @@ public interface AccountProjectionPort {
     Optional<StoredAccount> findByUserId(UserId userId);
 
     /**
+     * Locks the account row for the user ({@code SELECT … FOR UPDATE}) and returns the same shape
+     * as {@link #findByUserId}. Empty when the user has no account.
+     *
+     * <p>Requires an active transaction: the lock is held until that transaction commits or rolls
+     * back. Only write use cases call this.
+     */
+    Optional<StoredAccount> lockByUserId(UserId userId);
+
+    /**
      * Persists the full account state and marks the projection {@code READY}.
      *
      * <p>Requires an active transaction. The caller must hold the account lock
-     * ({@code lockByUserId}) in that same transaction: this overwrites the whole projection, so
+     * ({@link #lockByUserId}) in that same transaction: this overwrites the whole projection, so
      * saving an account read without the lock can silently undo a concurrent write (ADR-006).
      * Only write use cases call this.
      */
