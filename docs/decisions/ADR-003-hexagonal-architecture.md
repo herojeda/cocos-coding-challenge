@@ -36,7 +36,7 @@ Dentro de cada capa, las clases se agrupan en un subpaquete por concepto del dom
 ```
 domain/
   account/                 Account (raíz del agregado), Position, AccountId,
-                           AccountSnapshot, LedgerEntry, excepciones de la cuenta
+                           AccountState, LedgerEntry, excepciones de la cuenta
   costbasis/               CostBasisCalculator, CostBasisState,
                            WeightedAverageCostBasisCalculator
   order/                   Order, OrderId, enumerados, OrderPlacementPolicy,
