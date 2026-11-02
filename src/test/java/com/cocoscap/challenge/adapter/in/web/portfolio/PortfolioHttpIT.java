@@ -75,6 +75,7 @@ class PortfolioHttpIT {
         assertThat(result).hasStatus(HttpStatus.NOT_FOUND);
         assertThat(result).hasContentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
         assertThat(jsonString(result, "$.code")).isEqualTo("USER_NOT_FOUND");
+        assertThat(body(result)).doesNotContain("9999999");
     }
 
     @Test
