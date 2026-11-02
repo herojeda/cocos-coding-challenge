@@ -168,7 +168,7 @@ Una posición con tenencia negativa DEBE listarse con su cantidad y su valor de 
 - **THEN** la posición en BMA tiene cantidad 5 y costo promedio 1.500
 - **AND** el resultado realizado de BMA sigue siendo −200 ARS
 
-El tratamiento de la tenencia negativa *(pendiente: confirmar supuesto [S3](../../assumptions.md) con Cocos)*.
+El tratamiento de la tenencia negativa sigue el supuesto [S3](../../assumptions.md), confirmado por Cocos.
 
 ### Requirement: Posición sin cotización
 
@@ -183,4 +183,4 @@ Una posición en un instrumento sin ninguna cotización DEBE listarse con su can
 - **AND** su valor de mercado, su rendimiento y su variación diaria se informan sin valor
 - **AND** el valor total de su cuenta es 100.000 ARS
 
-El tratamiento de instrumentos sin cotización *(pendiente: confirmar supuesto [S5](../../assumptions.md) con Cocos)*.
+El tratamiento de instrumentos sin cotización sigue el supuesto [S5](../../assumptions.md), confirmado por Cocos.

@@ -4,7 +4,7 @@
 
 ## Contexto
 
-Las reglas de negocio del challenge (reservas, rechazos con motivo, cálculo por monto, costo promedio) son lo que más interesa testear de forma aislada, y varias dependen de supuestos que estamos validando con Cocos. A la vez, son cuatro casos de uso: la estructura no debe convertirse en ceremonia.
+Las reglas de negocio del challenge (reservas, rechazos con motivo, cálculo por monto, costo promedio) son lo que más interesa testear de forma aislada, y varias dependen de supuestos que el enunciado no resolvía y que después confirmó Cocos. A la vez, son cuatro casos de uso: la estructura no debe convertirse en ceremonia.
 
 ## Decisión
 
@@ -85,7 +85,7 @@ La transacción y el lock pertenecen al caso de uso: enviar una orden es una uni
 
 ### Puntos de variación aislados
 
-Los supuestos pendientes de confirmación quedan cada uno en una sola pieza, para que una respuesta distinta de Cocos sea cambiar una pieza y no reescribir el flujo:
+Los supuestos de negocio quedan cada uno en una sola pieza, para que un cambio de criterio sea cambiar una pieza y no reescribir el flujo:
 
 - La reserva del disponible ([S1](../assumptions.md)) en `Account`.
 - El método de costo ([S2](../assumptions.md)) detrás de la interfaz `CostBasisCalculator`, con la implementación de costo promedio ponderado.

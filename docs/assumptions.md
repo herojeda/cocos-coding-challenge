@@ -4,19 +4,19 @@ Este archivo reúne las definiciones que el enunciado del challenge no resuelve 
 
 Hay dos tipos de estado:
 
-- **Pendiente de confirmación:** se consultó a Cocos por mail. Mientras no haya respuesta, el sistema se comporta según el supuesto.
+- **Confirmado por Cocos:** se consultó a Cocos por mail y respondió que se avance con el supuesto tal como está documentado.
 - **Decisión de diseño:** no se consultó porque se deriva del enunciado o es una elección razonable de producto. Se documenta para que sea explícita.
 
-Cuando Cocos responda, se actualiza el estado acá y, si la respuesta cambia el comportamiento, las specs afectadas en el mismo PR.
+Cocos confirmó S1 a S6 el 2 de noviembre de 2026. Si un supuesto cambiara más adelante, se actualiza primero acá y después las specs afectadas, en el mismo PR.
 
 | ID | Tema | Estado |
 |---|---|---|
-| S1 | Reserva del disponible en órdenes LIMIT | Pendiente de confirmación |
-| S2 | Cálculo del rendimiento | Pendiente de confirmación |
-| S3 | Tenencia negativa de BMA en la seed | Pendiente de confirmación |
-| S4 | Usuarios, cuentas y unicidad | Pendiente de confirmación |
-| S5 | Instrumentos sin cotización | Pendiente de confirmación |
-| S6 | Órdenes por monto en pesos | Pendiente de confirmación |
+| S1 | Reserva del disponible en órdenes LIMIT | Confirmado por Cocos |
+| S2 | Cálculo del rendimiento | Confirmado por Cocos |
+| S3 | Tenencia negativa de BMA en la seed | Confirmado por Cocos |
+| S4 | Usuarios, cuentas y unicidad | Confirmado por Cocos |
+| S5 | Instrumentos sin cotización | Confirmado por Cocos |
+| S6 | Órdenes por monto en pesos | Confirmado por Cocos |
 | S7 | Órdenes LIMIT que cruzan el precio de mercado | Decisión de diseño |
 | S8 | Error de validación vs. rechazo de negocio | Decisión de diseño |
 | S9 | Último precio y datos de mercado | Decisión de diseño |
@@ -30,7 +30,7 @@ Cuando Cocos responda, se actualiza el estado acá y, si la respuesta cambia el 
 
 ## S1 — Reserva del disponible en órdenes LIMIT
 
-**Estado:** pendiente de confirmación.
+**Estado:** confirmado por Cocos.
 
 **Supuesto:** una orden BUY LIMIT en estado `NEW` reserva `size × precio límite` de los pesos disponibles, y una SELL LIMIT en `NEW` reserva las acciones correspondientes. Al cancelarse, la reserva se libera. Las órdenes `FILLED`, `REJECTED` y `CANCELLED` no reservan nada.
 
@@ -42,7 +42,7 @@ Cuando Cocos responda, se actualiza el estado acá y, si la respuesta cambia el 
 
 ## S2 — Cálculo del rendimiento
 
-**Estado:** pendiente de confirmación.
+**Estado:** confirmado por Cocos.
 
 **Supuesto:** el rendimiento total se calcula por posición (instrumento), no por orden, sobre el **costo promedio ponderado** (PPC): `último precio / PPC − 1`. El PPC se calcula recorriendo las órdenes ejecutadas en orden cronológico:
 
@@ -58,7 +58,7 @@ Como datos complementarios se exponen el **resultado realizado** (`(precio de ve
 
 ## S3 — Tenencia negativa de BMA en la seed
 
-**Estado:** pendiente de confirmación.
+**Estado:** confirmado por Cocos.
 
 **Supuesto:** la seed registra una venta `FILLED` de 30 BMA cuando el usuario 1 tenía 20, lo que deja la tenencia en −10. No se corrigen los datos: el libro de órdenes es la fuente de verdad y el sistema lo refleja tal cual. La posición se informa con cantidad −10 y valor de mercado negativo, que resta del valor total. El costo promedio y el rendimiento de esa posición quedan sin calcular. El resultado realizado de la venta se calcula solo sobre las 20 acciones que había (−200 ARS): las 10 vendidas de más nunca formaron parte de la tenencia, así que no generan resultado. Por la misma razón, una compra posterior primero compensa el faltante, sin costo ni resultado, y solo lo que queda por encima de cero forma el costo promedio. La validación de venta impide que el sistema genere este estado con órdenes nuevas.
 
@@ -68,7 +68,7 @@ Como datos complementarios se exponen el **resultado realizado** (`(precio de ve
 
 ## S4 — Usuarios, cuentas y unicidad
 
-**Estado:** pendiente de confirmación.
+**Estado:** confirmado por Cocos.
 
 **Supuesto:** un usuario tiene una sola cuenta y una cuenta pertenece a un solo usuario. La cuenta se modela como una entidad propia, que agrupa el efectivo, las reservas y las posiciones, y el número de cuenta pasa del usuario a la cuenta. Las órdenes siguen referenciando al usuario: con la relación 1 a 1, la cuenta se obtiene a partir de él. Se agrega unicidad sobre el número de cuenta y sobre el email (sin distinguir mayúsculas). Como el sistema opera sobre un único mercado, también se agrega unicidad sobre el ticker de los instrumentos.
 
@@ -78,7 +78,7 @@ Como datos complementarios se exponen el **resultado realizado** (`(precio de ve
 
 ## S5 — Instrumentos sin cotización
 
-**Estado:** pendiente de confirmación.
+**Estado:** confirmado por Cocos.
 
 **Supuesto:** PGR e IRCP no tienen registros en `marketdata`. Una orden MARKET sobre un instrumento sin cotización se registra como `REJECTED`, porque no hay precio contra el cual ejecutarla. Las órdenes LIMIT se aceptan, porque el precio lo informa el usuario. Si un usuario tuviera tenencia en uno de estos instrumentos, el portfolio informa la cantidad, pero el valor de mercado y el rendimiento quedan sin calcular y no suman al valor total.
 
@@ -86,7 +86,7 @@ Como datos complementarios se exponen el **resultado realizado** (`(precio de ve
 
 ## S6 — Órdenes por monto en pesos
 
-**Estado:** pendiente de confirmación.
+**Estado:** confirmado por Cocos.
 
 **Supuesto:** la cantidad se calcula como el entero inferior de `monto / precio`, usando el último precio en órdenes MARKET y el precio límite en órdenes LIMIT. La orden se registra con la cantidad calculada. Solo se compromete `cantidad × precio`: en MARKET es lo que se debita y en LIMIT lo que se reserva. El excedente no se reserva y sigue disponible. Si el monto no alcanza para una acción, el pedido se responde con un error de validación y la orden no se registra.
 

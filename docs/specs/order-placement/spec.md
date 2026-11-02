@@ -103,7 +103,7 @@ Cuando el pedido informa un monto en pesos, la cantidad DEBE calcularse como el 
 - **THEN** el pedido se responde con un error de validación
 - **AND** no se registra ninguna orden
 
-El cálculo por monto *(pendiente: confirmar supuesto [S6](../../assumptions.md) con Cocos)*.
+El cálculo por monto sigue el supuesto [S6](../../assumptions.md), confirmado por Cocos.
 
 ### Requirement: Ejecución inmediata de órdenes MARKET
 
@@ -155,7 +155,7 @@ Una orden LIMIT con disponible suficiente DEBE registrarse en estado `NEW` con e
 - **AND** tiene 25 PAMP disponibles para vender
 - **AND** su tenencia de PAMP sigue siendo 40
 
-La reserva *(pendiente: confirmar supuesto [S1](../../assumptions.md) con Cocos)*. Las órdenes que cruzan el precio quedan en `NEW` según el supuesto [S7](../../assumptions.md).
+La reserva sigue el supuesto [S1](../../assumptions.md), confirmado por Cocos. Las órdenes que cruzan el precio quedan en `NEW` según el supuesto [S7](../../assumptions.md).
 
 ### Requirement: Rechazo de compras por pesos insuficientes
 
@@ -251,7 +251,7 @@ Una orden MARKET sobre un instrumento que no tiene ninguna cotización DEBE regi
 - **WHEN** envía una orden BUY LIMIT de 10 PGR a 50
 - **THEN** la orden se registra `NEW` por 10 PGR a 50
 
-El tratamiento de instrumentos sin cotización *(pendiente: confirmar supuesto [S5](../../assumptions.md) con Cocos)*. Qué cantidad se registra en una orden MARKET por monto rechazada por falta de cotización, ya que sin precio no se puede calcular *(pendiente: definir)*.
+El tratamiento de instrumentos sin cotización sigue el supuesto [S5](../../assumptions.md), confirmado por Cocos. Qué cantidad se registra en una orden MARKET por monto rechazada por falta de cotización, ya que sin precio no se puede calcular *(pendiente: definir)*.
 
 ### Requirement: Motivo del rechazo
 
