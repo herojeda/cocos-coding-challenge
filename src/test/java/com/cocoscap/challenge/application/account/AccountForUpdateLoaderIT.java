@@ -76,6 +76,13 @@ class AccountForUpdateLoaderIT {
     }
 
     @Test
+    @DisplayName("load returns empty when the user has no account")
+    void loadReturnsEmptyForUnknownUser() {
+        assertThat(accountForUpdateLoader.load(UserId.of(999_999L))).isEmpty();
+        assertThat(tradingMetrics.rebuilds()).isEmpty();
+    }
+
+    @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @DisplayName("Failed rebuild reports failure, rolls back, and leaves the account PENDING")
     void failedRebuildLeavesAccountPending() {
