@@ -45,7 +45,7 @@ class JdbcOrderBookAdapterIT {
     private JdbcClient jdbcClient;
 
     @Test
-    @DisplayName("ORD-08 shape · Registers and finds a FILLED order by amount")
+    @DisplayName("Registers and finds a FILLED order by amount (shape of ORD-08)")
     void registersAndFindsFilledByAmount() {
         UserId userId = UserId.of(insertUser("order-book-filled@test.com"));
         InstrumentId ggal = instrumentId("GGAL");
@@ -70,11 +70,12 @@ class JdbcOrderBookAdapterIT {
         assertThat(order.size()).isEqualTo(11L);
         assertThat(order.amount()).isEqualByComparingTo("10000.00");
         assertThat(order.price()).isEqualByComparingTo("885.80");
+        assertThat(order.datetime()).isEqualTo(DATETIME);
         assertThat(found.orElseThrow().requestHash()).isEqualTo(HASH);
     }
 
     @Test
-    @DisplayName("ORD-14 shape · Registers and finds a NEW LIMIT order")
+    @DisplayName("Registers and finds a NEW LIMIT order (shape of ORD-14)")
     void registersAndFindsNewLimit() {
         UserId userId = UserId.of(insertUser("order-book-new@test.com"));
         InstrumentId ggal = instrumentId("GGAL");
@@ -92,10 +93,11 @@ class JdbcOrderBookAdapterIT {
         assertThat(order.price()).isEqualByComparingTo("850.00");
         assertThat(order.amount()).isNull();
         assertThat(order.rejectionReason()).isNull();
+        assertThat(order.datetime()).isEqualTo(DATETIME);
     }
 
     @Test
-    @DisplayName("ORD-41 shape · Registers and finds a REJECTED order without size or price")
+    @DisplayName("Registers and finds a REJECTED order without size or price (shape of ORD-41)")
     void registersAndFindsRejectedWithoutSizeOrPrice() {
         UserId userId = UserId.of(insertUser("order-book-rejected@test.com"));
         InstrumentId pgr = instrumentId("PGR");
@@ -120,6 +122,7 @@ class JdbcOrderBookAdapterIT {
         assertThat(order.price()).isNull();
         assertThat(order.amount()).isEqualByComparingTo("10000.00");
         assertThat(order.rejectionReason()).isEqualTo(RejectionReason.NO_MARKET_PRICE);
+        assertThat(order.datetime()).isEqualTo(DATETIME);
     }
 
     @Test

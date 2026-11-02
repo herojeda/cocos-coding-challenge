@@ -20,8 +20,8 @@ public interface OrderBookPort {
 
     /**
      * Finds the order registered for {@code userId} under {@code idempotencyKey}. Empty when the key
-     * is unused for that user. Supports {@code NEW}, {@code FILLED} and {@code REJECTED}; {@code
-     * CANCELLED} is out of scope until cancellation.
+     * is unused for that user. Rehydrates the persisted row through {@code Order}'s canonical
+     * constructor (any status the ledger can hold).
      */
     Optional<StoredOrder> findByUserAndKey(UserId userId, IdempotencyKey idempotencyKey);
 }

@@ -89,41 +89,19 @@ public final class JdbcOrderBookAdapter implements OrderBookPort {
     }
 
     private static StoredOrder toStoredOrder(OrderRow row) {
-        OrderStatus status = OrderStatus.valueOf(row.status());
-        if (status == OrderStatus.CANCELLED) {
-            throw new IllegalStateException(
-                    "CANCELLED orders are not mapped yet; mapping lands with order-cancellation");
-        }
-
-        OrderId id = OrderId.of(row.id());
-        UserId userId = UserId.of(row.userId());
-        InstrumentId instrumentId = InstrumentId.of(row.instrumentId());
-        OrderSide side = OrderSide.valueOf(row.side());
-        OrderType type = OrderType.valueOf(row.type());
-        Long size = toShareSize(row.size());
-        Instant datetime = row.datetime().toInstant();
-        RequestHash requestHash = RequestHash.of(row.requestHash());
-
-        Order order =
-                switch (status) {
-                    case FILLED -> Order.filled(
-                            id, userId, instrumentId, side, type, size, row.price(), row.amount(), datetime);
-                    case NEW -> Order.accepted(
-                            id, userId, instrumentId, side, type, size, row.price(), row.amount(), datetime);
-                    case REJECTED -> Order.rejected(
-                            id,
-                            userId,
-                            instrumentId,
-                            side,
-                            type,
-                            size,
-                            row.price(),
-                            row.amount(),
-                            RejectionReason.valueOf(row.rejectionReason()),
-                            datetime);
-                    case CANCELLED -> throw new IllegalStateException("unreachable");
-                };
-        return new StoredOrder(order, requestHash);
+        Order order = new Order(
+                OrderId.of(row.id()),
+                UserId.of(row.userId()),
+                InstrumentId.of(row.instrumentId()),
+                OrderSide.valueOf(row.side()),
+                OrderType.valueOf(row.type()),
+                toShareSize(row.size()),
+                row.price(),
+                row.amount(),
+                OrderStatus.valueOf(row.status()),
+                row.rejectionReason() == null ? null : RejectionReason.valueOf(row.rejectionReason()),
+                row.datetime().toInstant());
+        return new StoredOrder(order, RequestHash.of(row.requestHash()));
     }
 
     private static Long toShareSize(BigDecimal size) {
