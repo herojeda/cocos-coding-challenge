@@ -11,6 +11,7 @@ Los errores ([ADR-007](ADR-007-error-handling.md)), la idempotencia ([ADR-008](A
 ### Recursos
 
 - Las rutas usan los sustantivos del lenguaje de las specs, en inglés y en plural: `/instruments`, `/orders`.
+- Lo que pertenece a un usuario es un subrecurso suyo, porque el usuario se identifica explícitamente en cada pedido ([S11](../assumptions.md)): `GET /users/{userId}/portfolio`. Un usuario inexistente responde `USER_NOT_FOUND`.
 - Los filtros de una lista son parámetros de la query sobre el recurso, no rutas aparte, y cada uno nombra el campo por el que filtra: `GET /instruments?ticker=<texto>&name=<texto>`. Los filtros presentes se combinan con Y, y sin filtros la respuesta es la colección completa. Un filtro presente pero vacío responde `VALIDATION_ERROR`.
 
 ### Orden
