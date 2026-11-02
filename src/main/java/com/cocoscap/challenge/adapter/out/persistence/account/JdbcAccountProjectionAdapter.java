@@ -10,13 +10,14 @@ import com.cocoscap.challenge.domain.instrument.InstrumentId;
 import com.cocoscap.challenge.domain.user.UserId;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.simple.JdbcClient;
 
 /**
- * Reads {@code accounts} by {@code user_id}. {@code READY} also loads {@code positions}; {@code
- * PENDING} returns only the account id.
+ * Reads {@code accounts} by {@code user_id} in one statement, joining {@code positions} only when
+ * the projection is {@code READY}, so cash and holdings come from a single database snapshot.
  */
 public class JdbcAccountProjectionAdapter implements AccountProjectionPort {
 
@@ -28,55 +29,50 @@ public class JdbcAccountProjectionAdapter implements AccountProjectionPort {
 
     @Override
     public Optional<StoredAccount> findByUserId(UserId userId) {
-        Optional<AccountRow> account = jdbcClient
+        List<AccountProjectionRow> rows = jdbcClient
                 .sql(
                         """
-                        SELECT id, cash, reserved_cash, projection_status
-                        FROM accounts
-                        WHERE user_id = :userId
+                        SELECT a.id, a.cash, a.reserved_cash, a.projection_status,
+                               p.instrument_id, p.quantity, p.reserved_quantity,
+                               p.average_cost, p.realized_pnl
+                        FROM accounts a
+                        LEFT JOIN positions p
+                          ON p.account_id = a.id AND a.projection_status = 'READY'
+                        WHERE a.user_id = :userId
+                        ORDER BY p.instrument_id
                         """)
                 .param("userId", userId.value())
-                .query(AccountRow.class)
-                .optional();
+                .query(AccountProjectionRow.class)
+                .list();
 
-        if (account.isEmpty()) {
+        if (rows.isEmpty()) {
             return Optional.empty();
         }
 
-        AccountRow row = account.get();
-        AccountId accountId = AccountId.of(row.id());
-        return switch (row.projectionStatus()) {
+        AccountProjectionRow first = rows.getFirst();
+        AccountId accountId = AccountId.of(first.id());
+        return switch (first.projectionStatus()) {
             case "PENDING" -> Optional.of(new StoredAccount.Pending(accountId));
-            case "READY" -> Optional.of(new StoredAccount.Ready(toState(row, accountId)));
+            case "READY" -> Optional.of(new StoredAccount.Ready(toState(accountId, rows)));
             default -> throw new IllegalStateException(
-                    "unknown projection_status: " + row.projectionStatus());
+                    "unknown projection_status: " + first.projectionStatus());
         };
     }
 
-    private AccountState toState(AccountRow row, AccountId accountId) {
-        List<PositionState> positions = jdbcClient
-                .sql(
-                        """
-                        SELECT instrument_id, quantity, reserved_quantity, average_cost, realized_pnl
-                        FROM positions
-                        WHERE account_id = :accountId
-                        ORDER BY instrument_id
-                        """)
-                .param("accountId", accountId.value())
-                .query(PositionRow.class)
-                .list()
-                .stream()
-                .map(JdbcAccountProjectionAdapter::toPositionState)
-                .toList();
-
+    private static AccountState toState(AccountId accountId, List<AccountProjectionRow> rows) {
+        AccountProjectionRow first = rows.getFirst();
+        List<PositionState> positions = new ArrayList<>();
+        for (AccountProjectionRow row : rows) {
+            if (row.instrumentId() == null) {
+                continue;
+            }
+            positions.add(toPositionState(row));
+        }
         return new AccountState(
-                accountId,
-                scaleCash(row.cash()),
-                scaleCash(row.reservedCash()),
-                positions);
+                accountId, scaleCash(first.cash()), scaleCash(first.reservedCash()), List.copyOf(positions));
     }
 
-    private static PositionState toPositionState(PositionRow row) {
+    private static PositionState toPositionState(AccountProjectionRow row) {
         Optional<BigDecimal> averageCost = Optional.ofNullable(row.averageCost())
                 .map(cost -> cost.setScale(CostBasisState.AVERAGE_COST_SCALE, RoundingMode.UNNECESSARY));
         BigDecimal realizedPnl =
@@ -93,12 +89,14 @@ public class JdbcAccountProjectionAdapter implements AccountProjectionPort {
         return value.setScale(AccountState.CASH_SCALE, RoundingMode.UNNECESSARY);
     }
 
-    record AccountRow(long id, BigDecimal cash, BigDecimal reservedCash, String projectionStatus) {}
-
-    record PositionRow(
-            long instrumentId,
-            long quantity,
-            long reservedQuantity,
+    record AccountProjectionRow(
+            long id,
+            BigDecimal cash,
+            BigDecimal reservedCash,
+            String projectionStatus,
+            Long instrumentId,
+            Long quantity,
+            Long reservedQuantity,
             BigDecimal averageCost,
             BigDecimal realizedPnl) {}
 }

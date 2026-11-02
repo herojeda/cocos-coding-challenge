@@ -81,6 +81,22 @@ class JdbcAccountProjectionAdapterIT {
     }
 
     @Test
+    @DisplayName("READY projection with no positions returns empty holdings")
+    void readyProjectionWithNoPositions() {
+        long userId = insertUser("projection-ready-empty@test.com");
+        long accountId = insertAccount(userId, "20002", "50.00", "0.00", "READY");
+
+        StoredAccount stored = accountProjectionPort.findByUserId(UserId.of(userId)).orElseThrow();
+
+        assertThat(stored)
+                .isEqualTo(new StoredAccount.Ready(new AccountState(
+                        AccountId.of(accountId),
+                        new BigDecimal("50.00"),
+                        new BigDecimal("0.00"),
+                        List.of())));
+    }
+
+    @Test
     @DisplayName("Unknown user returns empty projection")
     void unknownUserReturnsEmpty() {
         assertThat(accountProjectionPort.findByUserId(UserId.of(9_999_999L))).isEmpty();
