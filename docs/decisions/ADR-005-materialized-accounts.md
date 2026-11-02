@@ -79,7 +79,7 @@ Reconstruir es un *fold*: se recorre el libro una sola vez y cada orden modifica
 
 - **El orden lo garantiza la consulta**, por `datetime` y después por `id`, usando el índice `orders(user_id, datetime, id)` ([ADR-004](ADR-004-schema-and-migrations.md)).
 - **El dominio consume las órdenes de a una y valida el orden**: si una llega antes que la anterior, falla en lugar de reordenar. Un error en la consulta produce un error visible, no una cuenta incorrecta.
-- **La persistencia lee en lotes**, con un cursor del driver y un tamaño de lote acotado (posible porque la lectura ocurre dentro de una transacción). El dominio no depende de cómo se leen los lotes.
+- **La persistencia lee en lotes**, con un cursor del driver y un tamaño de lote acotado (posible porque la lectura ocurre dentro de una transacción). El dominio no depende de cómo se leen los lotes. El tamaño por defecto es 500 (`cocos.persistence.ledger-fetch-size`): sin fetch size, pgJDBC trae todo el resultado; 500 acota la memoria por lote a cientos de KB y lee 10.000 órdenes en 20 viajes.
 
 La memoria queda acotada por la cantidad de instrumentos de la cuenta. El **tiempo** de reconstrucción, en cambio, sigue creciendo con el historial y transcurre bajo el lock de la cuenta; eso lo resuelve la evolución documentada más abajo.
 

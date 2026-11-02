@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -28,8 +30,8 @@ class SchemaMigrationTest {
     JdbcClient jdbcClient;
 
     @Test
-    @DisplayName("All four migrations applied successfully")
-    void allFourMigrationsApplied() {
+    @DisplayName("All five migrations applied successfully")
+    void allFiveMigrationsApplied() {
         List<String> versions = jdbcClient
                 .sql(
                         """
@@ -41,7 +43,32 @@ class SchemaMigrationTest {
                 .query(String.class)
                 .list();
 
-        assertThat(versions).containsExactly("1", "2", "3", "4");
+        assertThat(versions).containsExactly("1", "2", "3", "4", "5");
+    }
+
+    @Test
+    @DisplayName("orders.datetime is TIMESTAMPTZ; seed order 1 is 2023-07-12T15:11:20Z; ledger index remains")
+    void ordersDatetimeIsTimestamptzWithSeedInstantAndIndex() {
+        assertThat(columnDataType("orders", "datetime")).isEqualTo("timestamp with time zone");
+
+        OffsetDateTime datetime = jdbcClient
+                .sql("SELECT datetime FROM orders WHERE id = 1")
+                .query(OffsetDateTime.class)
+                .single();
+        assertThat(datetime.toInstant()).isEqualTo(Instant.parse("2023-07-12T15:11:20Z"));
+
+        Integer indexCount = jdbcClient
+                .sql(
+                        """
+                        SELECT COUNT(*)
+                        FROM pg_indexes
+                        WHERE schemaname = 'public'
+                          AND tablename = 'orders'
+                          AND indexname = 'orders_user_id_datetime_id_idx'
+                        """)
+                .query(Integer.class)
+                .single();
+        assertThat(indexCount).isEqualTo(1);
     }
 
     @Test
