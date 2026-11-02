@@ -2,6 +2,7 @@ package com.cocoscap.challenge.adapter.in.web.error;
 
 import com.cocoscap.challenge.domain.account.AccountBusyException;
 import com.cocoscap.challenge.domain.instrument.InstrumentNotFoundException;
+import com.cocoscap.challenge.domain.order.IdempotencyKeyReusedException;
 import com.cocoscap.challenge.domain.order.NewOrderValidationException;
 import com.cocoscap.challenge.domain.user.UserNotFoundException;
 import io.micrometer.common.KeyValue;
@@ -194,6 +195,13 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(AccountBusyException.class)
     public ResponseEntity<Object> handleAccountBusy(AccountBusyException ex, WebRequest request) {
         return problemResponse(ProblemCode.ACCOUNT_BUSY, ProblemCode.ACCOUNT_BUSY.status(), ex, null, request);
+    }
+
+    @ExceptionHandler(IdempotencyKeyReusedException.class)
+    public ResponseEntity<Object> handleIdempotencyKeyReused(
+            IdempotencyKeyReusedException ex, WebRequest request) {
+        return problemResponse(
+                ProblemCode.IDEMPOTENCY_KEY_REUSED, ProblemCode.IDEMPOTENCY_KEY_REUSED.status(), ex, null, request);
     }
 
     /**
