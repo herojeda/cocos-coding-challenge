@@ -6,6 +6,7 @@ import com.cocoscap.challenge.application.account.AccountProjectionPort;
 import com.cocoscap.challenge.application.instrument.InstrumentLookupPort;
 import com.cocoscap.challenge.application.market.MarketDataPort;
 import com.cocoscap.challenge.application.observability.TradingMetricsPort;
+import com.cocoscap.challenge.application.order.CancelOrderUseCase;
 import com.cocoscap.challenge.application.order.OrderBookPort;
 import com.cocoscap.challenge.application.order.PlaceOrderUseCase;
 import java.time.Clock;
@@ -43,5 +44,13 @@ public class OrderConfig {
                 marketDataPort,
                 tradingMetricsPort,
                 clock);
+    }
+
+    @Bean
+    CancelOrderUseCase cancelOrderUseCase(
+            AccountForUpdateLoader accountForUpdateLoader,
+            AccountProjectionPort accountProjectionPort,
+            OrderBookPort orderBookPort) {
+        return new CancelOrderUseCase(accountForUpdateLoader, accountProjectionPort, orderBookPort);
     }
 }
