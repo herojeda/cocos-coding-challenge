@@ -40,7 +40,14 @@ public class AccountForUpdateLoader {
     @Transactional(propagation = Propagation.MANDATORY)
     public Optional<Account> load(UserId userId) {
         Objects.requireNonNull(userId, "userId");
-        return accountProjectionPort.lockByUserId(userId).map(stored -> switch (stored) {
+        long lockStarted = System.nanoTime();
+        Optional<StoredAccount> locked;
+        try {
+            locked = accountProjectionPort.lockByUserId(userId);
+        } finally {
+            tradingMetricsPort.accountLockWaited(elapsed(lockStarted));
+        }
+        return locked.map(stored -> switch (stored) {
             case StoredAccount.Ready(var state) -> Account.restore(state, costBasisCalculator);
             case StoredAccount.Pending(var accountId) -> rebuildAndPersist(userId, accountId);
         });

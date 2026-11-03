@@ -12,6 +12,12 @@ public interface TradingMetricsPort {
     void projectionRebuilt(Duration duration, boolean success);
 
     /**
+     * {@code trading.account.lock.wait}. No tags. Includes the account read that follows the lock;
+     * timed waits that end in {@code ACCOUNT_BUSY} are also reported.
+     */
+    void accountLockWaited(Duration duration);
+
+    /**
      * {@code trading.orders}. {@code rejectionReason} may be {@code null}; the adapter maps that to
      * the tag {@code NONE}.
      */

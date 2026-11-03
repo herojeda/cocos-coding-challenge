@@ -14,8 +14,10 @@ import com.cocoscap.challenge.support.TradingTestUsers.TestUser;
 import com.jayway.jsonpath.JsonPath;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -69,6 +71,8 @@ class OrderPlacementBusyHttpIT {
         long ggalId = users.instrumentId("GGAL");
         TransactionTemplate tx = new TransactionTemplate(transactionManager);
         double busyBefore = counter(meterRegistry, "trading.account.busy", "operation", "place");
+        long lockWaitCountBefore = timerCount(meterRegistry, "trading.account.lock.wait");
+        double lockWaitTotalBefore = timerTotalMillis(meterRegistry, "trading.account.lock.wait");
         AccountLockHolder lockHolder = new AccountLockHolder(transactionManager, accountProjectionPort);
 
         AtomicReference<MvcTestResult> contenderResult = new AtomicReference<>();
@@ -92,6 +96,10 @@ class OrderPlacementBusyHttpIT {
             assertThat(users.countOrders(user.userId())).isZero();
             assertThat(counter(meterRegistry, "trading.account.busy", "operation", "place"))
                     .isEqualTo(busyBefore + 1);
+            assertThat(timerCount(meterRegistry, "trading.account.lock.wait"))
+                    .isEqualTo(lockWaitCountBefore + 1);
+            assertThat(timerTotalMillis(meterRegistry, "trading.account.lock.wait") - lockWaitTotalBefore)
+                    .isGreaterThanOrEqualTo(200.0);
             Account available = tx.execute(status -> {
                 try (Stream<LedgerEntry> entries = accountLedgerPort.streamByUserId(lockedUser)) {
                     return users.rebuildFromLedger(user, entries);
@@ -114,5 +122,15 @@ class OrderPlacementBusyHttpIT {
     private static double counter(MeterRegistry registry, String name, String... tags) {
         Counter counter = registry.find(name).tags(tags).counter();
         return counter == null ? 0.0 : counter.count();
+    }
+
+    private static long timerCount(MeterRegistry registry, String name) {
+        Timer timer = registry.find(name).timer();
+        return timer == null ? 0L : timer.count();
+    }
+
+    private static double timerTotalMillis(MeterRegistry registry, String name) {
+        Timer timer = registry.find(name).timer();
+        return timer == null ? 0.0 : timer.totalTime(TimeUnit.MILLISECONDS);
     }
 }
