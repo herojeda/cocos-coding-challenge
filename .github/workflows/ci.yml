@@ -38,3 +38,12 @@ jobs:
         with:
           name: test-reports
           path: build/reports/tests/
+
+  docker-image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Build Docker image
+        run: docker build .

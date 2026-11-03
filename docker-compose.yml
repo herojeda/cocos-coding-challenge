@@ -15,6 +15,34 @@ services:
       timeout: 5s
       retries: 10
 
+  app:
+    profiles: ["app"]
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/cocos
+      DB_USERNAME: cocos
+      DB_PASSWORD: cocos
+    # Reach Postgres via the published host port. Keeps DB_URL on hostname
+    # "postgres" while avoiding broken bridge isolation between containers.
+    extra_hosts:
+      - "postgres:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Temurin JRE has no curl/wget; bash /dev/tcp avoids extra packages.
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080 && printf \"GET /actuator/health HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n\" >&3 && grep -q UP <&3'",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 18
+      start_period: 60s
+
   otel-lgtm:
     image: grafana/otel-lgtm:0.8.4
     profiles: ["observability"]
