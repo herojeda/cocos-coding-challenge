@@ -103,5 +103,25 @@ public final class TradingTestUsers {
         return UserId.of(user.userId());
     }
 
+    /** Cleans up users created outside {@code @Transactional} tests (e.g. ORD-32). */
+    public void deleteUserAndAccount(TestUser user) {
+        jdbcClient
+                .sql("DELETE FROM positions WHERE account_id = :accountId")
+                .param("accountId", user.accountId())
+                .update();
+        jdbcClient
+                .sql("DELETE FROM orders WHERE user_id = :userId")
+                .param("userId", user.userId())
+                .update();
+        jdbcClient
+                .sql("DELETE FROM accounts WHERE id = :accountId")
+                .param("accountId", user.accountId())
+                .update();
+        jdbcClient
+                .sql("DELETE FROM users WHERE id = :userId")
+                .param("userId", user.userId())
+                .update();
+    }
+
     public record TestUser(long userId, long accountId) {}
 }
