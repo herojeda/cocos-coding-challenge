@@ -24,10 +24,6 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/cocos
       DB_USERNAME: cocos
       DB_PASSWORD: cocos
-    # Reach Postgres via the published host port. Keeps DB_URL on hostname
-    # "postgres" while avoiding broken bridge isolation between containers.
-    extra_hosts:
-      - "postgres:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy
