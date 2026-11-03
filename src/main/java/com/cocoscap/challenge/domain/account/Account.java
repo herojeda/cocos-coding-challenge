@@ -4,6 +4,7 @@ import com.cocoscap.challenge.domain.account.AccountState.PositionState;
 import com.cocoscap.challenge.domain.costbasis.CostBasisCalculator;
 import com.cocoscap.challenge.domain.costbasis.CostBasisState;
 import com.cocoscap.challenge.domain.instrument.InstrumentId;
+import com.cocoscap.challenge.domain.order.Order;
 import com.cocoscap.challenge.domain.order.OrderDecision;
 import com.cocoscap.challenge.domain.order.OrderSide;
 import com.cocoscap.challenge.domain.order.OrderStatus;
@@ -133,6 +134,22 @@ public final class Account {
             case REJECTED, CANCELLED -> {
                 // no account impact
             }
+        }
+    }
+
+    /**
+     * Releases the reservation of a cancelled LIMIT order (ADR-005). Call after
+     * {@link Order#cancel()}.
+     */
+    public void release(Order order) {
+        Objects.requireNonNull(order, "order");
+        if (order.status() != OrderStatus.CANCELLED) {
+            throw new IllegalArgumentException("order must be CANCELLED");
+        }
+        if (order.side() == OrderSide.BUY) {
+            releaseCash(notional(order.size(), order.price()));
+        } else {
+            releaseShares(order.instrumentId(), order.size());
         }
     }
 
