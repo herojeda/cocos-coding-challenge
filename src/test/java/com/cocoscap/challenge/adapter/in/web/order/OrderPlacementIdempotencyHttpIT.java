@@ -45,7 +45,7 @@ class OrderPlacementIdempotencyHttpIT {
     }
 
     @Test
-    @DisplayName("ORD-34 · Reintento del mismo pedido")
+    @DisplayName("ORD-34 · Reintento de una orden ejecutada")
     void ord34ReplayReturnsSameOrder() {
         TestUser user = users.createWithCash(new BigDecimal("100000"));
         long ggalId = users.instrumentId("GGAL");
@@ -65,11 +65,11 @@ class OrderPlacementIdempotencyHttpIT {
     }
 
     @Test
-    @DisplayName("ORD-35 · Reintento de un rechazo")
+    @DisplayName("ORD-35 · Reintento de una orden rechazada")
     void ord35ReplayKeepsRejectionAfterCashIn() {
-        TestUser user = users.createWithCash(new BigDecimal("1000"));
+        TestUser user = users.createWithCash(new BigDecimal("100000"));
         long ggalId = users.instrumentId("GGAL");
-        String body = marketBuy(ggalId, 10);
+        String body = marketBuy(ggalId, 200);
 
         MvcTestResult first = place(user.userId(), "k-2", body);
         assertThat(first).hasStatus(HttpStatus.CREATED);
@@ -90,7 +90,7 @@ class OrderPlacementIdempotencyHttpIT {
     }
 
     @Test
-    @DisplayName("ORD-36 · Misma clave con pedido distinto")
+    @DisplayName("ORD-36 · Clave reutilizada con otro pedido")
     void ord36KeyReusedWithDifferentRequest() {
         TestUser user = users.createWithCash(new BigDecimal("100000"));
         long ggalId = users.instrumentId("GGAL");
@@ -98,7 +98,7 @@ class OrderPlacementIdempotencyHttpIT {
         assertThat(place(user.userId(), "k-3", marketBuy(ggalId, 10))).hasStatus(HttpStatus.CREATED);
         long ordersAfterFirst = users.countOrders(user.userId());
 
-        MvcTestResult reused = place(user.userId(), "k-3", marketBuy(ggalId, 11));
+        MvcTestResult reused = place(user.userId(), "k-3", marketBuy(ggalId, 20));
         assertThat(reused).hasStatus(HttpStatus.UNPROCESSABLE_CONTENT);
         assertThat(jsonString(reused, "$.code")).isEqualTo("IDEMPOTENCY_KEY_REUSED");
         assertThat(body(reused)).doesNotContain("k-3");
@@ -106,22 +106,28 @@ class OrderPlacementIdempotencyHttpIT {
     }
 
     @Test
-    @DisplayName("ORD-37 · Misma clave en otro usuario")
+    @DisplayName("ORD-37 · La misma clave en usuarios distintos")
     void ord37SameKeyOnDifferentUserIsProcessed() {
         TestUser first = users.createWithCash(new BigDecimal("100000"));
         TestUser second = users.createWithCash(new BigDecimal("100000"));
         long ggalId = users.instrumentId("GGAL");
-        String body = marketBuy(ggalId, 10);
 
-        assertThat(place(first.userId(), "shared-key", body)).hasStatus(HttpStatus.CREATED);
-        MvcTestResult otherUser = place(second.userId(), "shared-key", body);
+        assertThat(place(first.userId(), "k-4", marketBuy(ggalId, 10))).hasStatus(HttpStatus.CREATED);
+        MvcTestResult otherUser = place(
+                second.userId(),
+                "k-4",
+                """
+                {"instrument_id":%d,"side":"BUY","type":"LIMIT","size":10,"amount":null,"price":850}
+                """
+                        .formatted(ggalId));
         assertThat(otherUser).hasStatus(HttpStatus.CREATED);
         assertThat(otherUser.getResponse().getHeader(OrderController.IDEMPOTENT_REPLAYED_HEADER)).isNull();
+        assertThat(jsonString(otherUser, "$.status")).isEqualTo("NEW");
         assertThat(users.countOrders(second.userId())).isEqualTo(1);
     }
 
     @Test
-    @DisplayName("ORD-39 · Clave libre después de un error de validación")
+    @DisplayName("ORD-39 · Reintento después de un error de validación")
     void ord39KeyFreeAfterValidationError() {
         TestUser user = users.createWithCash(new BigDecimal("100000"));
         long ggalId = users.instrumentId("GGAL");
