@@ -266,16 +266,35 @@ class JdbcAccountProjectionAdapterIT {
 
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    @DisplayName("lock waiter reads the state committed by the previous holder")
+    @DisplayName("lock waiter reads the cash and positions committed by the previous holder")
     void lockWaiterReadsCommittedState() throws Exception {
         long userId = insertUserCommitted("projection-lock-wait@test.com");
         long accountId = insertAccountCommitted(userId, "20012", "10.00", "0.00", "READY");
+        long pampId = instrumentId("PAMP");
+        long ggalId = instrumentId("GGAL");
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> insertPosition(
+                accountId, pampId, 40L, 0L, new BigDecimal("900.000000"), new BigDecimal("0.00")));
         UserId lockedUser = UserId.of(userId);
+        // The holder changes an existing position and adds a new one. Under READ COMMITTED, a
+        // single SELECT ... JOIN positions ... FOR UPDATE OF a would re-read only the account row
+        // after waiting, and the waiter would see PAMP 40 and no GGAL.
         AccountState updated = new AccountState(
                 AccountId.of(accountId),
                 new BigDecimal("77.00"),
                 new BigDecimal("3.00"),
-                List.of());
+                List.of(
+                        new PositionState(
+                                InstrumentId.of(ggalId),
+                                5L,
+                                0L,
+                                Optional.of(new BigDecimal("885.800000")),
+                                new BigDecimal("0.00")),
+                        new PositionState(
+                                InstrumentId.of(pampId),
+                                10L,
+                                0L,
+                                Optional.of(new BigDecimal("900.000000")),
+                                new BigDecimal("150.00"))));
         TransactionTemplate tx = new TransactionTemplate(transactionManager);
 
         CountDownLatch holderHasLock = new CountDownLatch(1);

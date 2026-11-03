@@ -32,7 +32,7 @@ Referencias: [ADR-002](../../docs/decisions/ADR-002-data-access.md), [ADR-004](.
 
 ## Queries que tienen una forma definida
 
-- **Lock de la cuenta:** `SET LOCAL lock_timeout` con el valor configurado y después `SELECT ... FROM accounts WHERE user_id = :userId FOR UPDATE`. Un vencimiento del lock llega como SQLState `55P03` (Spring lo traduce a una `PessimisticLockingFailureException`); el adaptador lo convierte en la excepción de dominio que termina en `ACCOUNT_BUSY`.
+- **Lock de la cuenta:** `SET LOCAL lock_timeout` con el valor configurado y después `SELECT id FROM accounts WHERE user_id = :userId FOR UPDATE`. La cuenta y sus posiciones se leen en **otra** sentencia, después del lock, nunca con un `JOIN` en la misma sentencia del `FOR UPDATE` (ADR-006: las filas del `JOIN` no se vuelven a leer al obtener el lock). Un vencimiento del lock llega como SQLState `55P03` (Spring lo traduce a una `PessimisticLockingFailureException`); el adaptador lo convierte en la excepción de dominio que termina en `ACCOUNT_BUSY`.
 - **Último precio:** `SELECT DISTINCT ON (instrument_id) ... ORDER BY instrument_id, date DESC`.
 - **Búsqueda:** un `unaccent(lower(campo)) LIKE unaccent(lower(:pattern)) ESCAPE '\'` por cada filtro presente, combinados con `AND`, siempre excluyendo `CURRENCY`. Escapá `\`, `%` y `_` del texto antes de armar el patrón.
 - **Filtros y orden opcionales:** el `WHERE` y el `ORDER BY` se arman con fragmentos fijos escritos en el adaptador, uno por filtro presente y uno por valor del enum de orden. Los valores del usuario van siempre como parámetros con nombre. Nada de `(:x IS NULL OR ...)`: oculta qué filtros se aplicaron y le impide al planner usar un plan específico.

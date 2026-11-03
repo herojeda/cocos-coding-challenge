@@ -49,6 +49,7 @@ Con dos cancelaciones simultáneas de la misma orden, la segunda espera el lock 
 ### Propiedades
 
 - **Las lecturas ven los datos correctos.** En `READ COMMITTED` cada sentencia toma su propia foto de los datos. Las lecturas se ejecutan después de obtener el lock, y la transacción anterior que lo tenía ya hizo commit.
+- **El lock y la lectura van en sentencias separadas.** Primero `SELECT id FROM accounts WHERE user_id = ? FOR UPDATE`, y después la lectura de la cuenta con sus posiciones. No pueden ser una sola sentencia con `JOIN positions ... FOR UPDATE OF a`: cuando esa sentencia espera el lock, al obtenerlo PostgreSQL vuelve a leer solo la fila bloqueada (`accounts`), y las filas de `positions` salen de la foto tomada antes de esperar. Quien esperaba vería el efectivo nuevo con las posiciones viejas, y al guardar desharía los cambios de posiciones de la transacción anterior.
 - **Un solo lock por transacción**, siempre sobre la raíz del agregado: no puede haber deadlocks entre estas operaciones. Las posiciones no necesitan lock propio porque toda escritura pasa antes por el de la cuenta.
 - **La granularidad es la cuenta.** Cuentas distintas operan en paralelo; las operaciones de una misma cuenta esperan en fila durante unos pocos milisegundos.
 - **El dominio no sabe nada de concurrencia.** Recibe la cuenta, decide y la modifica en memoria.
