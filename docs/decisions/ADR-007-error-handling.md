@@ -22,13 +22,13 @@ Las respuestas de error usan `application/problem+json`, con soporte nativo de S
   "code": "ORDER_NOT_CANCELLABLE",
   "detail": "Only orders in status NEW can be cancelled",
   "instance": "urn:uuid:5b1f0c9e-2d7a-4f43-9c1e-8f0a2b6d4e11",
-  "orderId": 42,
-  "currentStatus": "FILLED"
+  "current_status": "FILLED"
 }
 ```
 
 - **`status` es numérico**, como exige el RFC, y coincide con el status HTTP. La redundancia con el header es intencional: el body sigue siendo interpretable aunque un intermediario reescriba el status o un log guarde solo el body.
 - **`type`** identifica la clase de problema con una URN (`urn:cocos-challenge:problem:<problema>`). Es un identificador desacoplado de cualquier ubicación: el cliente lo compara como string, y la documentación de cada problema puede vivir en cualquier lugar (hoy, el catálogo de este ADR) y moverse sin que el identificador cambie. El namespace `cocos-challenge` no está registrado ante IANA, como exige RFC 8141 para las URN formales; es aceptable porque el valor solo tiene que ser único y estable dentro del contrato de esta API.
+- **Campos propios por problema.** Un problema puede sumar campos propios, en snake_case como el resto del contrato ([ADR-010](ADR-010-api-contract.md)), solo con datos del servidor. `ORDER_NOT_CANCELLABLE` suma `current_status`, el estado actual de la orden. No se repite el identificador de la orden: es un valor que mandó el cliente en la ruta, y ya lo tiene.
 - **`code`** es un campo propio, que el RFC permite, con un valor de un catálogo cerrado. Va uno a uno con `type`: `type` es lo que entiende cualquier herramienta de Problem Details y `code` es lo cómodo para que el cliente haga un `switch`. Los códigos nombran el problema que ve el cliente, no la causa técnica interna.
 
 ### Catálogo de códigos
