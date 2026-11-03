@@ -11,6 +11,8 @@ import com.cocoscap.challenge.domain.user.UserId;
 import com.cocoscap.challenge.support.TradingTestUsers;
 import com.cocoscap.challenge.support.TradingTestUsers.TestUser;
 import com.jayway.jsonpath.JsonPath;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CountDownLatch;
@@ -55,6 +57,9 @@ class OrderPlacementBusyHttpIT {
     @Autowired
     private PlatformTransactionManager transactionManager;
 
+    @Autowired
+    private MeterRegistry meterRegistry;
+
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @DisplayName("ORD-32 · La cuenta queda ocupada más allá del tiempo máximo")
@@ -64,6 +69,7 @@ class OrderPlacementBusyHttpIT {
         UserId lockedUser = UserId.of(user.userId());
         long ggalId = users.instrumentId("GGAL");
         TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        double busyBefore = counter(meterRegistry, "trading.account.busy", "operation", "place");
 
         CountDownLatch holderHasLock = new CountDownLatch(1);
         CountDownLatch holderMayFinish = new CountDownLatch(1);
@@ -108,6 +114,8 @@ class OrderPlacementBusyHttpIT {
             assertThat(result).hasStatus(HttpStatus.CONFLICT);
             assertThat(jsonString(result, "$.code")).isEqualTo("ACCOUNT_BUSY");
             assertThat(users.countOrders(user.userId())).isZero();
+            assertThat(counter(meterRegistry, "trading.account.busy", "operation", "place"))
+                    .isEqualTo(busyBefore + 1);
             Account available = tx.execute(status -> {
                 try (Stream<LedgerEntry> entries = accountLedgerPort.streamByUserId(lockedUser)) {
                     return users.rebuildFromLedger(user, entries);
@@ -137,5 +145,10 @@ class OrderPlacementBusyHttpIT {
 
     private static String jsonString(MvcTestResult result, String path) {
         return JsonPath.read(body(result), path);
+    }
+
+    private static double counter(MeterRegistry registry, String name, String... tags) {
+        Counter counter = registry.find(name).tags(tags).counter();
+        return counter == null ? 0.0 : counter.count();
     }
 }

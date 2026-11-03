@@ -144,15 +144,12 @@ class AccountForUpdateLoaderIT {
 
         @Override
         public void orderProcessed(
-                com.cocoscap.challenge.domain.order.OrderType type,
-                com.cocoscap.challenge.domain.order.OrderSide side,
-                com.cocoscap.challenge.domain.order.OrderStatus status,
-                com.cocoscap.challenge.domain.order.RejectionReason rejectionReason) {
+                OrderType type, OrderSide side, OrderStatus status, RejectionReason rejectionReason) {
             // unused in this IT
         }
 
         @Override
-        public void accountBusy(com.cocoscap.challenge.application.observability.AccountOperation operation) {
+        public void accountBusy(AccountOperation operation) {
             // unused in this IT
         }
 

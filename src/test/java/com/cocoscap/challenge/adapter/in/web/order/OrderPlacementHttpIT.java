@@ -12,6 +12,8 @@ import com.cocoscap.challenge.domain.costbasis.WeightedAverageCostBasisCalculato
 import com.cocoscap.challenge.support.TradingTestUsers;
 import com.cocoscap.challenge.support.TradingTestUsers.TestUser;
 import com.jayway.jsonpath.JsonPath;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.stream.Stream;
@@ -46,6 +48,9 @@ class OrderPlacementHttpIT {
 
     @Autowired
     private AccountLedgerPort accountLedgerPort;
+
+    @Autowired
+    private MeterRegistry meterRegistry;
 
     private TradingTestUsers users;
 
@@ -106,6 +111,17 @@ class OrderPlacementHttpIT {
     void ord17RejectedInsufficientCash() {
         TestUser user = users.createWithCash(new BigDecimal("100000"));
         long ggalId = users.instrumentId("GGAL");
+        double rejectedBefore = counter(
+                meterRegistry,
+                "trading.orders",
+                "type",
+                "MARKET",
+                "side",
+                "BUY",
+                "status",
+                "REJECTED",
+                "rejection_reason",
+                "INSUFFICIENT_CASH");
 
         MvcTestResult result = place(
                 user.userId(),
@@ -119,6 +135,18 @@ class OrderPlacementHttpIT {
         assertThat(jsonString(result, "$.status")).isEqualTo("REJECTED");
         assertThat(jsonString(result, "$.rejection_reason")).isEqualTo("INSUFFICIENT_CASH");
         assertThat(users.availableCash(user.userId())).isEqualByComparingTo("100000");
+        assertThat(counter(
+                        meterRegistry,
+                        "trading.orders",
+                        "type",
+                        "MARKET",
+                        "side",
+                        "BUY",
+                        "status",
+                        "REJECTED",
+                        "rejection_reason",
+                        "INSUFFICIENT_CASH"))
+                .isEqualTo(rejectedBefore + 1);
         assertReconciled(user);
     }
 
@@ -186,5 +214,10 @@ class OrderPlacementHttpIT {
 
     private static long jsonLong(MvcTestResult result, String path) {
         return ((Number) JsonPath.read(body(result), path)).longValue();
+    }
+
+    private static double counter(MeterRegistry registry, String name, String... tags) {
+        Counter counter = registry.find(name).tags(tags).counter();
+        return counter == null ? 0.0 : counter.count();
     }
 }
