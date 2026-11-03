@@ -23,8 +23,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 /**
  * Reads and writes {@code accounts} / {@code positions}. Reads join positions only when the
- * projection is {@code READY}. Writes take the account-row lock ({@code FOR UPDATE OF a}) and
- * persist the full {@link AccountState}.
+ * projection is {@code READY}. Writes lock the account row first and read the projection in a
+ * separate statement (see {@link #lockByUserId}), then persist the full {@link AccountState}.
  */
 public class JdbcAccountProjectionAdapter implements AccountProjectionPort {
 
@@ -41,6 +41,13 @@ public class JdbcAccountProjectionAdapter implements AccountProjectionPort {
               ON p.account_id = a.id AND a.projection_status = 'READY'
             WHERE a.user_id = :userId
             ORDER BY p.instrument_id
+            """;
+
+    private static final String LOCK_BY_USER_ID =
+            """
+            SELECT id FROM accounts
+            WHERE user_id = :userId
+            FOR UPDATE
             """;
 
     private final JdbcClient jdbcClient;
@@ -67,9 +74,20 @@ public class JdbcAccountProjectionAdapter implements AccountProjectionPort {
 
     @Override
     public Optional<StoredAccount> findByUserId(UserId userId) {
-        return toStoredAccount(selectByUserId(userId, false), userId);
+        return toStoredAccount(selectByUserId(userId), userId);
     }
 
+    /**
+     * Locks the account row and then reads the projection in a separate statement (ADR-006).
+     *
+     * <p>The two steps cannot be one {@code SELECT ... JOIN positions ... FOR UPDATE OF a}: under
+     * {@code READ COMMITTED}, a statement that waits for the lock re-reads only the locked
+     * {@code accounts} row once it gets it, while the joined {@code positions} rows come from the
+     * snapshot taken before waiting. The waiter would see the new cash with the old positions, and
+     * saving that state would undo the previous holder's position changes. A new statement takes a
+     * new snapshot after the previous holder committed, and positions are only written under this
+     * lock, so the read is consistent.
+     */
     @Override
     public Optional<StoredAccount> lockByUserId(UserId userId) {
         requireActiveTransaction("account lock");
@@ -78,14 +96,21 @@ public class JdbcAccountProjectionAdapter implements AccountProjectionPort {
                 .param("timeout", lockTimeoutMillis)
                 .query(String.class)
                 .single();
+        boolean locked;
         try {
-            return toStoredAccount(selectByUserId(userId, true), userId);
+            locked = jdbcClient
+                    .sql(LOCK_BY_USER_ID)
+                    .param("userId", userId.value())
+                    .query(Long.class)
+                    .optional()
+                    .isPresent();
         } catch (DataAccessException ex) {
             if (isLockTimeout(ex)) {
                 throw new AccountBusyException(ex);
             }
             throw ex;
         }
+        return locked ? toStoredAccount(selectByUserId(userId), userId) : Optional.empty();
     }
 
     /** True only for PostgreSQL {@code lock_timeout} (SQLState {@code 55P03}), not other lock failures. */
@@ -126,10 +151,9 @@ public class JdbcAccountProjectionAdapter implements AccountProjectionPort {
         upsertPositions(state);
     }
 
-    private List<AccountProjectionRow> selectByUserId(UserId userId, boolean forUpdate) {
-        String sql = forUpdate ? SELECT_BY_USER_ID + " FOR UPDATE OF a" : SELECT_BY_USER_ID;
+    private List<AccountProjectionRow> selectByUserId(UserId userId) {
         return jdbcClient
-                .sql(sql)
+                .sql(SELECT_BY_USER_ID)
                 .param("userId", userId.value())
                 .query(AccountProjectionRow.class)
                 .list();
