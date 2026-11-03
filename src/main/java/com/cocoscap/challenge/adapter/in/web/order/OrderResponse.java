@@ -5,7 +5,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 /** Registered order representation (ADR-010); unused fields are explicit {@code null}. */
-record PlaceOrderResponse(
+record OrderResponse(
         long id,
         long instrumentId,
         String side,
@@ -17,8 +17,8 @@ record PlaceOrderResponse(
         String rejectionReason,
         Instant datetime) {
 
-    static PlaceOrderResponse from(Order order) {
-        return new PlaceOrderResponse(
+    static OrderResponse from(Order order) {
+        return new OrderResponse(
                 order.id().value(),
                 order.instrumentId().value(),
                 order.side().name(),

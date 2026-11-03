@@ -88,8 +88,49 @@ public final class JdbcOrderBookAdapter implements OrderBookPort {
                 .map(JdbcOrderBookAdapter::toStoredOrder);
     }
 
+    @Override
+    public Optional<Order> findByUserAndId(UserId userId, OrderId orderId) {
+        Objects.requireNonNull(userId, "userId");
+        Objects.requireNonNull(orderId, "orderId");
+
+        return jdbcClient
+                .sql(
+                        """
+                        SELECT id, user_id, instrument_id, side, type, size, amount, price, status,
+                               rejection_reason, datetime, request_hash
+                        FROM orders
+                        WHERE id = :orderId AND user_id = :userId
+                        """)
+                .param("orderId", orderId.value())
+                .param("userId", userId.value())
+                .query(OrderRow.class)
+                .optional()
+                .map(JdbcOrderBookAdapter::toOrder);
+    }
+
+    @Override
+    public void markCancelled(OrderId orderId) {
+        Objects.requireNonNull(orderId, "orderId");
+        int updated = jdbcClient
+                .sql(
+                        """
+                        UPDATE orders SET status = 'CANCELLED'
+                        WHERE id = :orderId AND status = 'NEW'
+                        """)
+                .param("orderId", orderId.value())
+                .update();
+        if (updated != 1) {
+            throw new IllegalStateException(
+                    "expected to cancel exactly one NEW order row, updated " + updated);
+        }
+    }
+
     private static StoredOrder toStoredOrder(OrderRow row) {
-        Order order = new Order(
+        return new StoredOrder(toOrder(row), RequestHash.of(row.requestHash()));
+    }
+
+    private static Order toOrder(OrderRow row) {
+        return new Order(
                 OrderId.of(row.id()),
                 UserId.of(row.userId()),
                 InstrumentId.of(row.instrumentId()),
@@ -101,7 +142,6 @@ public final class JdbcOrderBookAdapter implements OrderBookPort {
                 OrderStatus.valueOf(row.status()),
                 row.rejectionReason() == null ? null : RejectionReason.valueOf(row.rejectionReason()),
                 row.datetime().toInstant());
-        return new StoredOrder(order, RequestHash.of(row.requestHash()));
     }
 
     private static Long toShareSize(BigDecimal size) {

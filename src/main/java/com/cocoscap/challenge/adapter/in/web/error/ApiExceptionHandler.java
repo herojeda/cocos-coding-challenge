@@ -4,6 +4,8 @@ import com.cocoscap.challenge.domain.account.AccountBusyException;
 import com.cocoscap.challenge.domain.instrument.InstrumentNotFoundException;
 import com.cocoscap.challenge.domain.order.IdempotencyKeyReusedException;
 import com.cocoscap.challenge.domain.order.NewOrderValidationException;
+import com.cocoscap.challenge.domain.order.OrderNotCancellableException;
+import com.cocoscap.challenge.domain.order.OrderNotFoundException;
 import com.cocoscap.challenge.domain.user.UserNotFoundException;
 import io.micrometer.common.KeyValue;
 import io.micrometer.observation.Observation;
@@ -55,6 +57,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static final String CODE_PROPERTY = "code";
     private static final String ERRORS_PROPERTY = "errors";
+    private static final String CURRENT_STATUS_PROPERTY = "current_status";
     private static final String PROBLEM_CODE_ATTRIBUTE = "problem.code";
     private static final String PROBLEM_INSTANCE_ATTRIBUTE = "problem.instance";
     /**
@@ -204,6 +207,24 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
                 ProblemCode.IDEMPOTENCY_KEY_REUSED, ProblemCode.IDEMPOTENCY_KEY_REUSED.status(), ex, null, request);
     }
 
+    @ExceptionHandler(OrderNotFoundException.class)
+    public ResponseEntity<Object> handleOrderNotFound(OrderNotFoundException ex, WebRequest request) {
+        return problemResponse(ProblemCode.ORDER_NOT_FOUND, ProblemCode.ORDER_NOT_FOUND.status(), ex, null, request);
+    }
+
+    @ExceptionHandler(OrderNotCancellableException.class)
+    public ResponseEntity<Object> handleOrderNotCancellable(
+            OrderNotCancellableException ex, WebRequest request) {
+        return problemResponse(
+                ProblemCode.ORDER_NOT_CANCELLABLE,
+                ProblemCode.ORDER_NOT_CANCELLABLE.status(),
+                ex,
+                null,
+                CURRENT_STATUS_PROPERTY,
+                ex.currentStatus().name(),
+                request);
+    }
+
     /**
      * Catch-all for unexpected failures. Domain exception handlers are registered above this by each
      * capability.
@@ -219,6 +240,17 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             Exception ex,
             @Nullable List<ValidationError> errors,
             WebRequest request) {
+        return problemResponse(code, status, ex, errors, null, null, request);
+    }
+
+    private ResponseEntity<Object> problemResponse(
+            ProblemCode code,
+            @Nullable HttpStatus status,
+            Exception ex,
+            @Nullable List<ValidationError> errors,
+            @Nullable String extraProperty,
+            @Nullable Object extraValue,
+            WebRequest request) {
         HttpStatus resolvedStatus = status != null ? status : HttpStatus.INTERNAL_SERVER_ERROR;
         String instance = "urn:uuid:" + UUID.randomUUID();
 
@@ -229,6 +261,9 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setProperty(CODE_PROPERTY, code.name());
         if (errors != null && !errors.isEmpty()) {
             problem.setProperty(ERRORS_PROPERTY, errors);
+        }
+        if (extraProperty != null) {
+            problem.setProperty(extraProperty, extraValue);
         }
 
         attachProblemToHttpObservation(request, code, instance, ex, resolvedStatus.is5xxServerError());
