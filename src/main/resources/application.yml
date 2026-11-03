@@ -46,3 +46,12 @@ cocos:
     ledger-fetch-size: 500
     account-lock-timeout: 2s
 
+# ADR-001: OpenAPI / Swagger UI. Only API controllers; actuator stays out.
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+  packages-to-scan: com.cocoscap.challenge.adapter.in.web
+  paths-to-match: /instruments/**, /users/**
+
