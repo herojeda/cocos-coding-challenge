@@ -93,13 +93,13 @@ class OrderCancellationHttpIT {
                         """
                                 .formatted(pampId)),
                 "$.id");
+        assertThat(restoredAccount(user).availableQuantity(InstrumentId.of(pampId))).isEqualTo(25L);
 
         MvcTestResult result = cancel(user.userId(), orderId);
 
         assertThat(result).hasStatusOk();
         assertThat(jsonString(result, "$.status")).isEqualTo("CANCELLED");
-        Account account = restoredAccount(user);
-        assertThat(account.availableQuantity(InstrumentId.of(pampId))).isEqualTo(40L);
+        assertThat(restoredAccount(user).availableQuantity(InstrumentId.of(pampId))).isEqualTo(40L);
         assertReconciled(user);
     }
 
@@ -183,7 +183,9 @@ class OrderCancellationHttpIT {
 
         assertThat(result).hasStatus(HttpStatus.NOT_FOUND);
         assertThat(jsonString(result, "$.code")).isEqualTo("ORDER_NOT_FOUND");
-        assertThat(jsonString(result, "$.detail")).doesNotContain(String.valueOf(orderId));
+        // Same check as assertNotCancellable: no order id field. A raw digit search is flaky for
+        // small seed ids that can appear in status/instance strings.
+        assertThat(body(result)).doesNotContain("\"id\":" + orderId);
         assertThat(orderStatus(orderId)).isEqualTo("NEW");
     }
 
