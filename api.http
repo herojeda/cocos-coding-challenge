@@ -1,0 +1,210 @@
+@baseUrl = http://localhost:8080
+
+###
+# AS-01 · Search by ticker GGAL
+GET {{baseUrl}}/instruments?ticker=GGAL
+
+###
+# AS-04 · Search by name without accents ("rio de la plata" → Molinos Río de la Plata)
+GET {{baseUrl}}/instruments?name=rio%20de%20la%20plata
+
+###
+# AS-12 · Unfiltered search with default pagination
+GET {{baseUrl}}/instruments?page=0&size=20
+
+###
+# AS-23 · Search sorted by NAME
+GET {{baseUrl}}/instruments?sort=NAME&page=0&size=5
+
+###
+# AS-08 · Blank ticker filter → 400 VALIDATION_ERROR
+GET {{baseUrl}}/instruments?ticker=
+
+###
+# PF-01 · Portfolio of seed user 1 (total_value 889756)
+GET {{baseUrl}}/users/1/portfolio
+
+###
+# PF-03 · Portfolio of a missing user → 404 USER_NOT_FOUND
+GET {{baseUrl}}/users/999999/portfolio
+
+###
+# ORD-12 · BUY MARKET GGAL by size → 201 FILLED (instrument_id 34 = GGAL in V1 seed)
+POST {{baseUrl}}/users/1/orders
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+
+{
+  "instrument_id": 34,
+  "side": "BUY",
+  "type": "MARKET",
+  "size": 10,
+  "amount": null,
+  "price": null
+}
+
+###
+# ORD-09 · BUY MARKET GGAL by amount → 201 FILLED
+POST {{baseUrl}}/users/1/orders
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+
+{
+  "instrument_id": 34,
+  "side": "BUY",
+  "type": "MARKET",
+  "size": null,
+  "amount": 10000,
+  "price": null
+}
+
+###
+# ORD-14 · BUY LIMIT GGAL → 201 NEW (id reused in cancel via placeLimit)
+# @name placeLimit
+POST {{baseUrl}}/users/1/orders
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+
+{
+  "instrument_id": 34,
+  "side": "BUY",
+  "type": "LIMIT",
+  "size": 10,
+  "amount": null,
+  "price": 850
+}
+
+###
+# ORD-17 · BUY MARKET exceeding available cash → 201 REJECTED INSUFFICIENT_CASH
+POST {{baseUrl}}/users/1/orders
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+
+{
+  "instrument_id": 34,
+  "side": "BUY",
+  "type": "MARKET",
+  "size": 1000,
+  "amount": null,
+  "price": null
+}
+
+###
+# ORD-25 · BUY MARKET on PGR without a quote → 201 REJECTED NO_MARKET_PRICE (instrument_id 3 = PGR)
+POST {{baseUrl}}/users/1/orders
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+
+{
+  "instrument_id": 3,
+  "side": "BUY",
+  "type": "MARKET",
+  "size": 10,
+  "amount": null,
+  "price": null
+}
+
+###
+# ORD-01 · LIMIT without price → 400 VALIDATION_ERROR
+POST {{baseUrl}}/users/1/orders
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+
+{
+  "instrument_id": 34,
+  "side": "BUY",
+  "type": "LIMIT",
+  "size": 10,
+  "amount": null,
+  "price": null
+}
+
+###
+# ORD-06 · Order on ARS currency → 400 VALIDATION_ERROR (instrument_id 66 = ARS)
+POST {{baseUrl}}/users/1/orders
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+
+{
+  "instrument_id": 66,
+  "side": "BUY",
+  "type": "MARKET",
+  "size": 10,
+  "amount": null,
+  "price": null
+}
+
+###
+# Missing Idempotency-Key → 400 VALIDATION_ERROR
+POST {{baseUrl}}/users/1/orders
+Content-Type: application/json
+
+{
+  "instrument_id": 34,
+  "side": "BUY",
+  "type": "MARKET",
+  "size": 1,
+  "amount": null,
+  "price": null
+}
+
+###
+# Idempotency · First placement with fixed key → 201 (change demo-replay-1 to re-run on the same DB)
+POST {{baseUrl}}/users/1/orders
+Content-Type: application/json
+Idempotency-Key: demo-replay-1
+
+{
+  "instrument_id": 34,
+  "side": "BUY",
+  "type": "LIMIT",
+  "size": 5,
+  "amount": null,
+  "price": 800
+}
+
+###
+# Idempotency · Same key and same body → 200 with Idempotent-Replayed: true
+POST {{baseUrl}}/users/1/orders
+Content-Type: application/json
+Idempotency-Key: demo-replay-1
+
+{
+  "instrument_id": 34,
+  "side": "BUY",
+  "type": "LIMIT",
+  "size": 5,
+  "amount": null,
+  "price": 800
+}
+
+###
+# Idempotency · Same key, different body → 422 IDEMPOTENCY_KEY_REUSED
+POST {{baseUrl}}/users/1/orders
+Content-Type: application/json
+Idempotency-Key: demo-replay-1
+
+{
+  "instrument_id": 34,
+  "side": "BUY",
+  "type": "LIMIT",
+  "size": 6,
+  "amount": null,
+  "price": 800
+}
+
+###
+# CXL-01 · Cancel the LIMIT from placeLimit → 200 CANCELLED
+POST {{baseUrl}}/users/1/orders/{{placeLimit.response.body.$.id}}/cancel
+
+###
+# CXL-06 · Cancel the same order again → 409 ORDER_NOT_CANCELLABLE (current_status CANCELLED)
+POST {{baseUrl}}/users/1/orders/{{placeLimit.response.body.$.id}}/cancel
+
+###
+# CXL-04 · Cancel a FILLED seed order → 409 (orders.id 2 = user 1 BUY MARKET PAMP FILLED in V1)
+POST {{baseUrl}}/users/1/orders/2/cancel
+
+###
+# CXL-07 · User 2 cancels user 1 LOMA NEW LIMIT → 404 ORDER_NOT_FOUND (orders.id 5 in V1)
+POST {{baseUrl}}/users/2/orders/5/cancel
