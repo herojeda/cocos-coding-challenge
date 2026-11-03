@@ -5,6 +5,7 @@ import com.cocoscap.challenge.application.account.AccountProjectionPort;
 import com.cocoscap.challenge.application.instrument.InstrumentLookupPort;
 import com.cocoscap.challenge.application.market.MarketDataPort;
 import com.cocoscap.challenge.application.observability.AccountOperation;
+import com.cocoscap.challenge.application.observability.IdempotencyReplayResult;
 import com.cocoscap.challenge.application.observability.TradingMetricsPort;
 import com.cocoscap.challenge.domain.account.Account;
 import com.cocoscap.challenge.domain.account.AccountBusyException;
@@ -14,6 +15,7 @@ import com.cocoscap.challenge.domain.instrument.InstrumentNotFoundException;
 import com.cocoscap.challenge.domain.instrument.InstrumentType;
 import com.cocoscap.challenge.domain.market.Quote;
 import com.cocoscap.challenge.domain.order.IdempotencyKey;
+import com.cocoscap.challenge.domain.order.IdempotencyKeyReusedException;
 import com.cocoscap.challenge.domain.order.NewOrder;
 import com.cocoscap.challenge.domain.order.NewOrderValidationException;
 import com.cocoscap.challenge.domain.order.Order;
@@ -21,6 +23,7 @@ import com.cocoscap.challenge.domain.order.OrderDecision;
 import com.cocoscap.challenge.domain.order.OrderId;
 import com.cocoscap.challenge.domain.order.OrderPlacementPolicy;
 import com.cocoscap.challenge.domain.order.OrderStatus;
+import com.cocoscap.challenge.domain.order.RequestHash;
 import com.cocoscap.challenge.domain.user.UserNotFoundException;
 import java.time.Clock;
 import java.time.Instant;
@@ -31,8 +34,7 @@ import java.util.Optional;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Places an order under the account lock (ADR-006). Idempotency lookup lands in a follow-up PR; this
- * version only stores the key and fingerprint with the registered order.
+ * Places an order under the account lock (ADR-006) with idempotency (ADR-008).
  *
  * <p>Not {@code final} so Spring can apply the transactional proxy.
  */
@@ -66,13 +68,26 @@ public class PlaceOrderUseCase {
     }
 
     @Transactional
-    public Order execute(NewOrder newOrder, IdempotencyKey idempotencyKey) {
+    public PlaceOrderResult execute(NewOrder newOrder, IdempotencyKey idempotencyKey) {
         Objects.requireNonNull(newOrder, "newOrder");
         Objects.requireNonNull(idempotencyKey, "idempotencyKey");
         try {
             Account account = accountForUpdateLoader
                     .load(newOrder.userId())
                     .orElseThrow(() -> new UserNotFoundException(newOrder.userId()));
+
+            RequestHash fingerprint = newOrder.fingerprint();
+            Optional<StoredOrder> previous =
+                    orderBookPort.findByUserAndKey(newOrder.userId(), idempotencyKey);
+            if (previous.isPresent()) {
+                StoredOrder stored = previous.get();
+                if (stored.requestHash().equals(fingerprint)) {
+                    tradingMetricsPort.idempotencyReplay(IdempotencyReplayResult.REPLAYED);
+                    return new PlaceOrderResult.Replayed(stored.order());
+                }
+                tradingMetricsPort.idempotencyReplay(IdempotencyReplayResult.KEY_REUSED);
+                throw new IdempotencyKeyReusedException();
+            }
 
             Instrument instrument = requireTradableInstrument(newOrder.instrumentId());
             Optional<Quote> quote = Optional.ofNullable(
@@ -85,8 +100,7 @@ public class PlaceOrderUseCase {
                     quote);
 
             Instant datetime = clock.instant().truncatedTo(ChronoUnit.MICROS);
-            OrderId orderId =
-                    orderBookPort.register(decision, idempotencyKey, newOrder.fingerprint(), datetime);
+            OrderId orderId = orderBookPort.register(decision, idempotencyKey, fingerprint, datetime);
             account.apply(decision);
             // REJECTED leaves the account unchanged (ADR-005), and a PENDING account was already saved by
             // AccountForUpdateLoader when it was rebuilt, so there is nothing to persist.
@@ -96,7 +110,7 @@ public class PlaceOrderUseCase {
 
             Order order = decision.toOrder(orderId, datetime);
             tradingMetricsPort.orderProcessed(order.type(), order.side(), order.status(), order.rejectionReason());
-            return order;
+            return new PlaceOrderResult.Registered(order);
         } catch (AccountBusyException ex) {
             tradingMetricsPort.accountBusy(AccountOperation.PLACE);
             throw ex;

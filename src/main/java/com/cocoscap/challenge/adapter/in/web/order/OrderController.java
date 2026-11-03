@@ -1,8 +1,8 @@
 package com.cocoscap.challenge.adapter.in.web.order;
 
+import com.cocoscap.challenge.application.order.PlaceOrderResult;
 import com.cocoscap.challenge.application.order.PlaceOrderUseCase;
 import com.cocoscap.challenge.domain.order.IdempotencyKey;
-import com.cocoscap.challenge.domain.order.Order;
 import com.cocoscap.challenge.domain.user.UserId;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
@@ -19,6 +19,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/users/{userId}/orders")
 public class OrderController {
 
+    static final String IDEMPOTENT_REPLAYED_HEADER = "Idempotent-Replayed";
+
     private final PlaceOrderUseCase placeOrderUseCase;
 
     public OrderController(PlaceOrderUseCase placeOrderUseCase) {
@@ -30,8 +32,14 @@ public class OrderController {
             @PathVariable @Min(1) long userId,
             @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody PlaceOrderRequest request) {
-        Order order = placeOrderUseCase.execute(
+        PlaceOrderResult result = placeOrderUseCase.execute(
                 request.toNewOrder(UserId.of(userId)), IdempotencyKey.of(idempotencyKey));
-        return ResponseEntity.status(HttpStatus.CREATED).body(PlaceOrderResponse.from(order));
+        PlaceOrderResponse body = PlaceOrderResponse.from(result.order());
+        return switch (result) {
+            case PlaceOrderResult.Registered ignored ->
+                ResponseEntity.status(HttpStatus.CREATED).body(body);
+            case PlaceOrderResult.Replayed ignored ->
+                ResponseEntity.ok().header(IDEMPOTENT_REPLAYED_HEADER, "true").body(body);
+        };
     }
 }

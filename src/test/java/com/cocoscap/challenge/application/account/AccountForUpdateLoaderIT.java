@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.cocoscap.challenge.PostgresTestcontainersConfiguration;
 import com.cocoscap.challenge.application.observability.AccountOperation;
+import com.cocoscap.challenge.application.observability.IdempotencyReplayResult;
 import com.cocoscap.challenge.application.observability.TradingMetricsPort;
 import com.cocoscap.challenge.domain.account.Account;
 import com.cocoscap.challenge.domain.order.OrderSide;
@@ -150,6 +151,11 @@ class AccountForUpdateLoaderIT {
 
         @Override
         public void accountBusy(AccountOperation operation) {
+            // unused in this IT
+        }
+
+        @Override
+        public void idempotencyReplay(IdempotencyReplayResult result) {
             // unused in this IT
         }
 

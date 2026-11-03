@@ -1,6 +1,7 @@
 package com.cocoscap.challenge.adapter.out.observability;
 
 import com.cocoscap.challenge.application.observability.AccountOperation;
+import com.cocoscap.challenge.application.observability.IdempotencyReplayResult;
 import com.cocoscap.challenge.application.observability.TradingMetricsPort;
 import com.cocoscap.challenge.domain.order.OrderSide;
 import com.cocoscap.challenge.domain.order.OrderStatus;
@@ -18,6 +19,7 @@ public final class MicrometerTradingMetricsAdapter implements TradingMetricsPort
     private static final String PROJECTION_REBUILDS = "trading.projection.rebuilds";
     private static final String ORDERS = "trading.orders";
     private static final String ACCOUNT_BUSY = "trading.account.busy";
+    private static final String IDEMPOTENCY_REPLAYS = "trading.idempotency.replays";
     private static final String NO_REJECTION_TAG = "NONE";
 
     private final MeterRegistry meterRegistry;
@@ -60,6 +62,14 @@ public final class MicrometerTradingMetricsAdapter implements TradingMetricsPort
         Objects.requireNonNull(operation, "operation");
         meterRegistry
                 .counter(ACCOUNT_BUSY, "operation", operation.name().toLowerCase(Locale.ROOT))
+                .increment();
+    }
+
+    @Override
+    public void idempotencyReplay(IdempotencyReplayResult result) {
+        Objects.requireNonNull(result, "result");
+        meterRegistry
+                .counter(IDEMPOTENCY_REPLAYS, "result", result.name().toLowerCase(Locale.ROOT))
                 .increment();
     }
 }

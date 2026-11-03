@@ -19,4 +19,10 @@ public interface TradingMetricsPort {
 
     /** {@code trading.account.busy}. The adapter maps the operation to the lowercase tag value. */
     void accountBusy(AccountOperation operation);
+
+    /**
+     * {@code trading.idempotency.replays}. The adapter maps the result to the lowercase tag value
+     * ({@code replayed}, {@code key_reused}).
+     */
+    void idempotencyReplay(IdempotencyReplayResult result);
 }

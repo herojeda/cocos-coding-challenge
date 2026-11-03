@@ -3,6 +3,7 @@ package com.cocoscap.challenge.adapter.out.observability;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.cocoscap.challenge.application.observability.AccountOperation;
+import com.cocoscap.challenge.application.observability.IdempotencyReplayResult;
 import com.cocoscap.challenge.domain.order.OrderSide;
 import com.cocoscap.challenge.domain.order.OrderStatus;
 import com.cocoscap.challenge.domain.order.OrderType;
@@ -44,6 +45,7 @@ class MicrometerTradingMetricsAdapterTest {
 
         metrics.orderProcessed(OrderType.MARKET, OrderSide.BUY, OrderStatus.FILLED, null);
         metrics.accountBusy(AccountOperation.PLACE);
+        metrics.idempotencyReplay(IdempotencyReplayResult.REPLAYED);
 
         assertThat(registry
                         .find("trading.orders")
@@ -55,6 +57,12 @@ class MicrometerTradingMetricsAdapterTest {
                 .isNotNull()
                 .satisfies(counter -> assertThat(counter.count()).isEqualTo(1));
         assertThat(registry.find("trading.account.busy").tag("operation", "place").counter())
+                .isNotNull()
+                .satisfies(counter -> assertThat(counter.count()).isEqualTo(1));
+        assertThat(registry
+                        .find("trading.idempotency.replays")
+                        .tag("result", "replayed")
+                        .counter())
                 .isNotNull()
                 .satisfies(counter -> assertThat(counter.count()).isEqualTo(1));
     }
