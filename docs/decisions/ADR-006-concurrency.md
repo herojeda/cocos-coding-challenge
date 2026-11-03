@@ -13,9 +13,11 @@ Con la proyección de [ADR-005](ADR-005-materialized-accounts.md), la cuenta y s
 **Lock pesimista sobre la fila de la cuenta**, en aislamiento `READ COMMITTED`. Toda transacción que modifica el agregado empieza con:
 
 ```sql
-SET LOCAL lock_timeout = '2s';
-SELECT ... FROM accounts WHERE user_id = ? FOR UPDATE;
+SELECT set_config('lock_timeout', '2000', true);   -- equivalente a SET LOCAL, con parámetro
+SELECT id FROM accounts WHERE user_id = ? FOR UPDATE;
 ```
+
+El tiempo máximo se fija con `set_config(..., true)` y no con `SET LOCAL`, porque `SET` no acepta parámetros y el valor es configurable: concatenarlo en el SQL rompería la regla de no armar SQL con valores. El tercer argumento `true` lo hace local a la transacción, igual que `SET LOCAL`. La cuenta y sus posiciones se leen después, en otra sentencia (ver "Propiedades").
 
 ### Envío de una orden
 

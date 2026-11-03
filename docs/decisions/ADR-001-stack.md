@@ -15,7 +15,7 @@ El enunciado del challenge pide Node.js, pero Cocos pidió explícitamente resol
 | Framework | Spring Boot 4.1 |
 | Base de datos | PostgreSQL, levantado localmente con docker-compose |
 | Migraciones | Flyway (ver [ADR-004](ADR-004-schema-and-migrations.md)) |
-| Tests | JUnit con AssertJ, y Testcontainers con PostgreSQL real para los tests de integración |
+| Tests | JUnit con AssertJ, Testcontainers con PostgreSQL real para los tests de integración, y ArchUnit para las reglas de arquitectura (ver [ADR-003](ADR-003-hexagonal-architecture.md)) |
 | Observabilidad | Micrometer con exportación OTLP mediante `spring-boot-starter-opentelemetry` (ver [ADR-009](ADR-009-observability.md)) |
 | Documentación de la API | springdoc-openapi (Swagger UI) y un archivo `.http` con ejemplos de invocación |
 
