@@ -38,6 +38,22 @@ class MicrometerTradingMetricsAdapterTest {
     }
 
     @Test
+    @DisplayName("account lock wait timer records without tags")
+    void recordsAccountLockWaitWithoutTags() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        MicrometerTradingMetricsAdapter metrics = new MicrometerTradingMetricsAdapter(registry);
+
+        metrics.accountLockWaited(Duration.ofMillis(25));
+
+        assertThat(registry.find("trading.account.lock.wait").timer())
+                .isNotNull()
+                .satisfies(timer -> {
+                    assertThat(timer.count()).isEqualTo(1);
+                    assertThat(timer.getId().getTags()).isEmpty();
+                });
+    }
+
+    @Test
     @DisplayName("order and busy counters publish ADR-009 tags")
     void recordsOrderAndBusyCounters() {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();

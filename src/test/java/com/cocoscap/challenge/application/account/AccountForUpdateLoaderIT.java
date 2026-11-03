@@ -69,16 +69,19 @@ class AccountForUpdateLoaderIT {
         assertThat(accountProjectionPort.findByUserId(USER_1))
                 .contains(new StoredAccount.Ready(account.state()));
         assertThat(tradingMetrics.rebuilds()).containsExactly(true);
+        assertThat(tradingMetrics.lockWaits()).hasSize(1);
     }
 
     @Test
     @DisplayName("READY path does not rebuild again in the same transaction")
     void readyPathDoesNotRebuildAgain() {
         accountForUpdateLoader.load(USER_1).orElseThrow();
+        tradingMetrics.clear();
         Account second = accountForUpdateLoader.load(USER_1).orElseThrow();
 
         assertThat(second.availableCash()).isEqualByComparingTo("627500");
-        assertThat(tradingMetrics.rebuilds()).containsExactly(true);
+        assertThat(tradingMetrics.rebuilds()).isEmpty();
+        assertThat(tradingMetrics.lockWaits()).hasSize(1);
     }
 
     @Test
@@ -86,6 +89,7 @@ class AccountForUpdateLoaderIT {
     void loadReturnsEmptyForUnknownUser() {
         assertThat(accountForUpdateLoader.load(UserId.of(999_999L))).isEmpty();
         assertThat(tradingMetrics.rebuilds()).isEmpty();
+        assertThat(tradingMetrics.lockWaits()).hasSize(1);
     }
 
     @Test
@@ -137,10 +141,16 @@ class AccountForUpdateLoaderIT {
     static final class RecordingTradingMetrics implements TradingMetricsPort {
 
         private final List<Boolean> rebuilds = new ArrayList<>();
+        private final List<Duration> lockWaits = new ArrayList<>();
 
         @Override
         public void projectionRebuilt(Duration duration, boolean success) {
             rebuilds.add(success);
+        }
+
+        @Override
+        public void accountLockWaited(Duration duration) {
+            lockWaits.add(duration);
         }
 
         @Override
@@ -163,8 +173,13 @@ class AccountForUpdateLoaderIT {
             return List.copyOf(rebuilds);
         }
 
+        List<Duration> lockWaits() {
+            return List.copyOf(lockWaits);
+        }
+
         void clear() {
             rebuilds.clear();
+            lockWaits.clear();
         }
     }
 }
