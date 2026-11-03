@@ -50,7 +50,9 @@ public class OrderConfig {
     CancelOrderUseCase cancelOrderUseCase(
             AccountForUpdateLoader accountForUpdateLoader,
             AccountProjectionPort accountProjectionPort,
-            OrderBookPort orderBookPort) {
-        return new CancelOrderUseCase(accountForUpdateLoader, accountProjectionPort, orderBookPort);
+            OrderBookPort orderBookPort,
+            TradingMetricsPort tradingMetricsPort) {
+        return new CancelOrderUseCase(
+                accountForUpdateLoader, accountProjectionPort, orderBookPort, tradingMetricsPort);
     }
 }

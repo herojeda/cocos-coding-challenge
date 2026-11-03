@@ -127,6 +127,35 @@ class OrderPlacementIdempotencyHttpIT {
     }
 
     @Test
+    @DisplayName("ORD-40 · El reintento muestra el estado actual de la orden")
+    void ord40ReplayShowsCancelledStatus() {
+        TestUser user = users.createWithCash(new BigDecimal("100000"));
+        long ggalId = users.instrumentId("GGAL");
+        String body =
+                """
+                {"instrument_id":%d,"side":"BUY","type":"LIMIT","size":10,"amount":null,"price":850}
+                """
+                        .formatted(ggalId);
+
+        MvcTestResult first = place(user.userId(), "k-7", body);
+        assertThat(first).hasStatus(HttpStatus.CREATED);
+        long orderId = jsonLong(first, "$.id");
+
+        MvcTestResult cancelled = mvc.post()
+                .uri("/users/{userId}/orders/{orderId}/cancel", user.userId(), orderId)
+                .exchange();
+        assertThat(cancelled).hasStatusOk();
+        assertThat(jsonString(cancelled, "$.status")).isEqualTo("CANCELLED");
+
+        MvcTestResult replay = place(user.userId(), "k-7", body);
+        assertThat(replay).hasStatusOk();
+        assertThat(replay.getResponse().getHeader(OrderController.IDEMPOTENT_REPLAYED_HEADER)).isEqualTo("true");
+        assertThat(jsonString(replay, "$.status")).isEqualTo("CANCELLED");
+        assertThat(jsonLong(replay, "$.id")).isEqualTo(orderId);
+        assertThat(users.countOrders(user.userId())).isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("ORD-39 · Reintento después de un error de validación")
     void ord39KeyFreeAfterValidationError() {
         TestUser user = users.createWithCash(new BigDecimal("100000"));
