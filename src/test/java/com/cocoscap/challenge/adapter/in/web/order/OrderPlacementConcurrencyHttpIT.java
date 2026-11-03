@@ -3,6 +3,7 @@ package com.cocoscap.challenge.adapter.in.web.order;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.cocoscap.challenge.PostgresTestcontainersConfiguration;
+import com.cocoscap.challenge.application.account.AccountForUpdateLoader;
 import com.cocoscap.challenge.application.account.AccountLedgerPort;
 import com.cocoscap.challenge.application.account.AccountProjectionPort;
 import com.cocoscap.challenge.application.account.StoredAccount;
@@ -57,11 +58,14 @@ class OrderPlacementConcurrencyHttpIT {
     private AccountLedgerPort accountLedgerPort;
 
     @Autowired
+    private AccountForUpdateLoader accountForUpdateLoader;
+
+    @Autowired
     private PlatformTransactionManager transactionManager;
 
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    @DisplayName("ORD-28 · Dos compras simultáneas sin efectivo para ambas")
+    @DisplayName("ORD-28 · Dos compras simultáneas que superan el disponible")
     void ord28ConcurrentBuys() throws Exception {
         TradingTestUsers users = new TradingTestUsers(jdbcClient);
         TestUser user = users.createWithCash(new BigDecimal("10000"));
@@ -69,6 +73,7 @@ class OrderPlacementConcurrencyHttpIT {
         String body = marketBuy(ggalId, 10);
 
         try {
+            warmReady(user.userId());
             List<MvcTestResult> results = runConcurrent(
                     () -> place(user.userId(), "ord-28-a", body),
                     () -> place(user.userId(), "ord-28-b", body));
@@ -93,7 +98,7 @@ class OrderPlacementConcurrencyHttpIT {
 
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    @DisplayName("ORD-29 · Dos ventas simultáneas sin tenencia para ambas")
+    @DisplayName("ORD-29 · Dos ventas simultáneas que superan la tenencia")
     void ord29ConcurrentSells() throws Exception {
         TradingTestUsers users = new TradingTestUsers(jdbcClient);
         TestUser user = users.createWithCash(new BigDecimal("100000"));
@@ -102,6 +107,7 @@ class OrderPlacementConcurrencyHttpIT {
         String body = marketSell(pampId, 30);
 
         try {
+            warmReady(user.userId());
             List<MvcTestResult> results = runConcurrent(
                     () -> place(user.userId(), "ord-29-a", body),
                     () -> place(user.userId(), "ord-29-b", body));
@@ -117,6 +123,34 @@ class OrderPlacementConcurrencyHttpIT {
 
             Account account = rebuild(users, user);
             assertThat(account.availableQuantity(InstrumentId.of(pampId))).isGreaterThanOrEqualTo(0);
+            assertThat(account.availableQuantity(InstrumentId.of(pampId))).isEqualTo(10L);
+            assertReconciled(users, user);
+        } finally {
+            users.deleteUserAndAccount(user);
+        }
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DisplayName("Two concurrent MARKET buys of distinct instruments both fill")
+    void concurrentBuysOfDistinctInstrumentsBothFill() throws Exception {
+        TradingTestUsers users = new TradingTestUsers(jdbcClient);
+        TestUser user = users.createWithCash(new BigDecimal("100000"));
+        long ggalId = users.instrumentId("GGAL");
+        long pampId = users.instrumentId("PAMP");
+
+        try {
+            warmReady(user.userId());
+            List<MvcTestResult> results = runConcurrent(
+                    () -> place(user.userId(), "distinct-a", marketBuy(ggalId, 10)),
+                    () -> place(user.userId(), "distinct-b", marketBuy(pampId, 10)));
+
+            List<String> statuses = results.stream().map(r -> jsonString(r, "$.status")).toList();
+            assertThat(statuses).containsExactly("FILLED", "FILLED");
+            assertThat(users.countOrders(user.userId())).isEqualTo(2);
+
+            Account account = rebuild(users, user);
+            assertThat(account.availableQuantity(InstrumentId.of(ggalId))).isEqualTo(10L);
             assertThat(account.availableQuantity(InstrumentId.of(pampId))).isEqualTo(10L);
             assertReconciled(users, user);
         } finally {
@@ -159,6 +193,12 @@ class OrderPlacementConcurrencyHttpIT {
         } finally {
             users.deleteUserAndAccount(user);
         }
+    }
+
+    /** Rebuilds a PENDING fixture to READY before racing, without changing scenario data. */
+    private void warmReady(long userId) {
+        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        tx.executeWithoutResult(status -> accountForUpdateLoader.load(UserId.of(userId)).orElseThrow());
     }
 
     private List<MvcTestResult> runConcurrent(RequestCall first, RequestCall second) throws Exception {

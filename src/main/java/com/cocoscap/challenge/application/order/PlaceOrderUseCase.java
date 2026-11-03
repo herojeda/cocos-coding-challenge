@@ -103,8 +103,7 @@ public class PlaceOrderUseCase {
             OrderId orderId = orderBookPort.register(decision, idempotencyKey, fingerprint, datetime);
             account.apply(decision);
             // REJECTED leaves the account unchanged (ADR-005), and a PENDING account was already saved by
-            // AccountForUpdateLoader when it was rebuilt, so there is nothing to persist. Skipping the
-            // no-op save also avoids a concurrent rejection overwriting a just-committed fill's positions.
+            // AccountForUpdateLoader when it was rebuilt, so there is nothing to persist.
             if (decision.status() != OrderStatus.REJECTED) {
                 accountProjectionPort.save(account.state());
             }
