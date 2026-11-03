@@ -67,26 +67,6 @@ public final class TradingTestUsers {
         return new TestUser(userId, accountId);
     }
 
-    /** Seeds a FILLED BUY so rebuild yields holdings (e.g. 40 PAMP). */
-    public void addFilledBuy(TestUser user, String ticker, long size, BigDecimal price, Instant datetime) {
-        long instrumentId = instrumentId(ticker);
-        jdbcClient
-                .sql(
-                        """
-                        INSERT INTO orders (
-                            instrument_id, user_id, size, price, type, side, status, datetime
-                        ) VALUES (
-                            :instrumentId, :userId, :size, :price, 'MARKET', 'BUY', 'FILLED', :datetime
-                        )
-                        """)
-                .param("instrumentId", instrumentId)
-                .param("userId", user.userId())
-                .param("size", BigDecimal.valueOf(size))
-                .param("price", price)
-                .param("datetime", OffsetDateTime.ofInstant(datetime, ZoneOffset.UTC))
-                .update();
-    }
-
     public long instrumentId(String ticker) {
         return jdbcClient
                 .sql("SELECT id FROM instruments WHERE ticker = :ticker")
@@ -121,25 +101,6 @@ public final class TradingTestUsers {
 
     public UserId userId(TestUser user) {
         return UserId.of(user.userId());
-    }
-
-    public void deleteUserAndAccount(TestUser user) {
-        jdbcClient
-                .sql("DELETE FROM positions WHERE account_id = :accountId")
-                .param("accountId", user.accountId())
-                .update();
-        jdbcClient
-                .sql("DELETE FROM orders WHERE user_id = :userId")
-                .param("userId", user.userId())
-                .update();
-        jdbcClient
-                .sql("DELETE FROM accounts WHERE id = :accountId")
-                .param("accountId", user.accountId())
-                .update();
-        jdbcClient
-                .sql("DELETE FROM users WHERE id = :userId")
-                .param("userId", user.userId())
-                .update();
     }
 
     public record TestUser(long userId, long accountId) {}
