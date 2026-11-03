@@ -75,4 +75,16 @@ public record Order(
                         userId, instrumentId, side, type, size, price, amount, rejectionReason)
                 .toOrder(id, datetime);
     }
+
+    /**
+     * Returns this order in {@link OrderStatus#CANCELLED}. Fails unless the current status is
+     * {@link OrderStatus#NEW}.
+     */
+    public Order cancel() {
+        if (status != OrderStatus.NEW) {
+            throw new OrderNotCancellableException(status);
+        }
+        return new Order(
+                id, userId, instrumentId, side, type, size, price, amount, OrderStatus.CANCELLED, null, datetime);
+    }
 }
