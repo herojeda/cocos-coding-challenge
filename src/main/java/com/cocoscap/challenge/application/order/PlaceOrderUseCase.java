@@ -88,28 +88,18 @@ public class PlaceOrderUseCase {
             OrderId orderId =
                     orderBookPort.register(decision, idempotencyKey, newOrder.fingerprint(), datetime);
             account.apply(decision);
-            // REJECTED leaves the account unchanged (ADR-005); skip a no-op projection save.
+            // REJECTED leaves the account unchanged (ADR-005), and a PENDING account was already saved by
+            // AccountForUpdateLoader when it was rebuilt, so there is nothing to persist.
             if (decision.status() != OrderStatus.REJECTED) {
                 accountProjectionPort.save(account.state());
             }
 
-<<<<<<< HEAD
-        Instant datetime = clock.instant().truncatedTo(ChronoUnit.MICROS);
-        OrderId orderId =
-                orderBookPort.register(decision, idempotencyKey, newOrder.fingerprint(), datetime);
-        account.apply(decision);
-        // REJECTED leaves the account unchanged (ADR-005), and a PENDING account was already saved by
-        // AccountForUpdateLoader when it was rebuilt, so there is nothing to persist.
-        if (decision.status() != OrderStatus.REJECTED) {
-            accountProjectionPort.save(account.state());
-=======
             Order order = decision.toOrder(orderId, datetime);
             tradingMetricsPort.orderProcessed(order.type(), order.side(), order.status(), order.rejectionReason());
             return order;
         } catch (AccountBusyException ex) {
             tradingMetricsPort.accountBusy(AccountOperation.PLACE);
             throw ex;
->>>>>>> b3252c9 (feat(order-placement): emit typed busy and order metrics)
         }
     }
 
