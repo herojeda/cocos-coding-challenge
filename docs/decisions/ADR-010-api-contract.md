@@ -14,7 +14,7 @@ Los errores ([ADR-007](ADR-007-error-handling.md)), la idempotencia ([ADR-008](A
 - Lo que pertenece a un usuario es un subrecurso suyo, porque el usuario se identifica explícitamente en cada pedido ([S11](../assumptions.md)): `GET /users/{userId}/portfolio`. Un usuario inexistente responde `USER_NOT_FOUND`.
 - Las órdenes también son un subrecurso del usuario:
   - **Envío:** `POST /users/{userId}/orders`. El body describe solo la orden, sin el usuario.
-  - **Cancelación:** `POST /users/{userId}/orders/{orderId}/cancel`. Es una acción sobre la orden, no un borrado: la orden sigue existiendo en estado `CANCELLED`, así que no se usa `DELETE`.
+  - **Cancelación:** `POST /users/{userId}/orders/{orderId}/cancel`, sin body. Es una acción sobre la orden, no un borrado: la orden sigue existiendo en estado `CANCELLED`, así que no se usa `DELETE`. Responde `200 OK` con la orden, con la misma representación que el envío.
   - Una orden de otro usuario se trata como inexistente: `ORDER_NOT_FOUND` ([S11](../assumptions.md)).
 - Los filtros de una lista son parámetros de la query sobre el recurso, no rutas aparte, y cada uno nombra el campo por el que filtra: `GET /instruments?ticker=<texto>&name=<texto>`. Los filtros presentes se combinan con Y, y sin filtros la respuesta es la colección completa. Un filtro presente pero vacío responde `VALIDATION_ERROR`.
 
