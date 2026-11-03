@@ -42,7 +42,7 @@ Se usa **`spring-boot-starter-opentelemetry`**, el starter de Spring Boot 4 que 
 
 Los casos de uso informan los hechos de negocio a través de un puerto de salida, **`TradingMetricsPort`**, definido en `application` (por ejemplo, `orderProcessed(type, side, status, rejectionReason)`). Su implementación con Micrometer vive en un adaptador nuevo, `adapter/out/observability`. El caso de uso no sabe que existe Micrometer, las reglas de ArchUnit de ADR-003 no cambian, y en los tests el puerto se reemplaza por un doble que registra las llamadas.
 
-La espera del lock se mide en el adaptador de persistencia, que es el que ejecuta el `SELECT ... FOR UPDATE`.
+La espera del lock se mide en `AccountForUpdateLoader`, alrededor de `lockByUserId`, y se informa por `TradingMetricsPort`: el adaptador de persistencia no puede depender de otro adaptador (ADR-003). El tiempo incluye la lectura de la cuenta que sigue al lock, que es despreciable frente a la espera cuando hay contención. Una espera que vence en `ACCOUNT_BUSY` también se mide.
 
 ### Logs
 

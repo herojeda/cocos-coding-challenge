@@ -17,6 +17,7 @@ import org.springframework.lang.Nullable;
 public final class MicrometerTradingMetricsAdapter implements TradingMetricsPort {
 
     private static final String PROJECTION_REBUILDS = "trading.projection.rebuilds";
+    private static final String ACCOUNT_LOCK_WAIT = "trading.account.lock.wait";
     private static final String ORDERS = "trading.orders";
     private static final String ACCOUNT_BUSY = "trading.account.busy";
     private static final String IDEMPOTENCY_REPLAYS = "trading.idempotency.replays";
@@ -35,6 +36,12 @@ public final class MicrometerTradingMetricsAdapter implements TradingMetricsPort
                 .tag("outcome", success ? "success" : "failure")
                 .register(meterRegistry)
                 .record(duration);
+    }
+
+    @Override
+    public void accountLockWaited(Duration duration) {
+        Objects.requireNonNull(duration, "duration");
+        Timer.builder(ACCOUNT_LOCK_WAIT).register(meterRegistry).record(duration);
     }
 
     @Override
