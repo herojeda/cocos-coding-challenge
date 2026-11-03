@@ -9,8 +9,8 @@ GET {{baseUrl}}/instruments?ticker=GGAL
 GET {{baseUrl}}/instruments?name=rio%20de%20la%20plata
 
 ###
-# AS-12 · Unfiltered search with default pagination
-GET {{baseUrl}}/instruments?page=0&size=20
+# AS-12 · Unfiltered search with default page, size and sort (20 instruments, AGRO to CVH, has_next true)
+GET {{baseUrl}}/instruments
 
 ###
 # AS-23 · Search sorted by NAME
