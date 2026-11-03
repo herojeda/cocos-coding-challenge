@@ -7,6 +7,7 @@ import io.swagger.v3.core.util.Json;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.media.ArraySchema;
 import io.swagger.v3.oas.models.media.IntegerSchema;
 import io.swagger.v3.oas.models.media.ObjectSchema;
 import io.swagger.v3.oas.models.media.StringSchema;
@@ -39,8 +40,16 @@ public class OpenApiConfig {
                                         .addProperty("detail", new StringSchema())
                                         .addProperty("instance", new StringSchema())
                                         .addProperty("code", new StringSchema().description("ADR-007 catalog"))
-                                        .addProperty("errors", new ObjectSchema())
-                                        .addProperty("current_status", new StringSchema())));
+                                        .addProperty(
+                                                "errors",
+                                                new ArraySchema()
+                                                        .items(new ObjectSchema()
+                                                                .addProperty("field", new StringSchema())
+                                                                .addProperty("reason", new StringSchema()))
+                                                        .description("Only for VALIDATION_ERROR"))
+                                        .addProperty(
+                                                "current_status",
+                                                new StringSchema().description("Only for ORDER_NOT_CANCELLABLE"))));
     }
 
     @Bean

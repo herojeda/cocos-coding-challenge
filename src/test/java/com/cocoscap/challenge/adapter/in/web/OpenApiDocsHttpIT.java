@@ -66,6 +66,20 @@ class OpenApiDocsHttpIT {
     }
 
     @Test
+    @DisplayName("OpenAPI ProblemDetail documents errors as an array of field/reason")
+    void problemDetailErrorsIsArray() {
+        String docs = apiDocs();
+        assertThat(JsonPath.<String>read(docs, "$.components.schemas.ProblemDetail.properties.errors.type"))
+                .isEqualTo("array");
+        assertThat(JsonPath.<Object>read(
+                        docs, "$.components.schemas.ProblemDetail.properties.errors.items.properties.field"))
+                .isNotNull();
+        assertThat(JsonPath.<Object>read(
+                        docs, "$.components.schemas.ProblemDetail.properties.errors.items.properties.reason"))
+                .isNotNull();
+    }
+
+    @Test
     @DisplayName("Swagger UI is reachable at /swagger-ui.html")
     void swaggerUiReachable() {
         MvcTestResult result = mvc.get().uri("/swagger-ui.html").exchange();
