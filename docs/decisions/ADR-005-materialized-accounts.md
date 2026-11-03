@@ -104,10 +104,10 @@ En operación normal nunca: cada orden actualiza la proyección en la misma tran
 #### Conciliación
 
 - **Test de conciliación.** Aplica secuencias de órdenes y verifica que la proyección incremental sea igual a la reconstruida desde cero. Se ejecuta también al final de los tests de concurrencia.
-- **Chequeo bajo demanda**, que compara la proyección de una cuenta con su reconstrucción. En un broker real, la conciliación diaria es práctica estándar.
 
 #### Evolución documentada
 
+- **Chequeo de conciliación bajo demanda**, por ejemplo un endpoint de administración o un job diario que compare la proyección de cada cuenta con su reconstrucción y marque `PENDING` las que difieran. En un broker real, la conciliación diaria es práctica estándar. Hoy la conciliación se verifica en los tests.
 - **Job de reconstrucción en segundo plano.** Procesa las cuentas `PENDING` de forma proactiva, para que el costo no lo pague el primer pedido de cada cuenta. En un entorno con varias instancias, cada una toma cuentas con `SELECT ... FOR UPDATE SKIP LOCKED`, sin coordinación adicional. Con los cuatro usuarios de la seed no aporta nada medible, por eso no se implementa.
 - **Checkpoints de la proyección.** Para historiales muy largos, guardar cada N órdenes una foto de la proyección junto con la posición del libro hasta la que incluye, y reconstruir desde el último checkpoint en lugar de desde el inicio. Acota el tiempo de reconstrucción, a costa de una tabla más y de invalidar los checkpoints cuando cambia la lógica de la proyección.
 
@@ -139,7 +139,7 @@ En operación normal nunca: cada orden actualiza la proyección en la misma tran
 ## Consecuencias
 
 - El envío de órdenes y el portfolio dejan de depender del tamaño del historial: el portfolio lee las posiciones de la cuenta y los últimos precios.
-- **Riesgo nuevo: desvío entre la proyección y el libro.** Se mitiga con la función única de reconstrucción, el test de conciliación y el chequeo bajo demanda. Una cuenta con desvío se marca `PENDING` y se reconstruye en su próxima escritura.
+- **Riesgo nuevo: desvío entre la proyección y el libro.** Se mitiga con la función única de reconstrucción y el test de conciliación, que también corre al final de los tests de concurrencia. Si se detectara un desvío, la cuenta se marca `PENDING` (a mano, hasta que exista el chequeo bajo demanda) y se reconstruye en su próxima escritura.
 - La cancelación ya no es un `UPDATE` aislado: libera reservas en la cuenta y por eso también toma el lock ([ADR-006](ADR-006-concurrency.md)).
 - El costo promedio ponderado es incremental; **FIFO no**. Si Cocos respondiera que el método es FIFO, haría falta una tabla de lotes por posición.
 - Cualquier camino que escriba en el libro (por ejemplo, transferencias o la ejecución futura de órdenes LIMIT por el mercado) tiene que actualizar la proyección en la misma transacción. Una orden LIMIT ejecutada liberaría su reserva al precio límite y debitaría el importe al precio de ejecución.
