@@ -6,29 +6,21 @@ import com.cocoscap.challenge.PostgresTestcontainersConfiguration;
 import com.cocoscap.challenge.application.account.AccountForUpdateLoader;
 import com.cocoscap.challenge.application.account.AccountLedgerPort;
 import com.cocoscap.challenge.application.account.AccountProjectionPort;
-import com.cocoscap.challenge.application.account.StoredAccount;
-import com.cocoscap.challenge.domain.account.Account;
-import com.cocoscap.challenge.domain.account.LedgerEntry;
-import com.cocoscap.challenge.domain.costbasis.WeightedAverageCostBasisCalculator;
 import com.cocoscap.challenge.domain.user.UserId;
+import com.cocoscap.challenge.support.AccountProjectionReconciler;
+import com.cocoscap.challenge.support.ConcurrentRequests;
 import com.cocoscap.challenge.support.TradingTestUsers;
 import com.cocoscap.challenge.support.TradingTestUsers.TestUser;
 import com.jayway.jsonpath.JsonPath;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
@@ -77,10 +69,12 @@ class OrderCancellationConcurrencyHttpIT {
                         """
                                 .formatted(ggalId)),
                 "$.id");
+        AccountProjectionReconciler reconciler =
+                new AccountProjectionReconciler(transactionManager, accountProjectionPort, accountLedgerPort);
 
         try {
             warmReady(user.userId());
-            List<MvcTestResult> results = runConcurrent(
+            List<MvcTestResult> results = ConcurrentRequests.runTogether(
                     () -> cancel(user.userId(), orderId), () -> cancel(user.userId(), orderId));
 
             List<Integer> statuses = results.stream().map(r -> r.getResponse().getStatus()).toList();
@@ -101,7 +95,7 @@ class OrderCancellationConcurrencyHttpIT {
 
             // Reservation released once: 100000, not 100000 + 8500.
             assertThat(users.availableCash(user.userId())).isEqualByComparingTo("100000");
-            assertReconciled(users, user);
+            reconciler.assertReconciled(users, user);
         } finally {
             users.deleteUserAndAccount(user);
         }
@@ -110,65 +104,6 @@ class OrderCancellationConcurrencyHttpIT {
     private void warmReady(long userId) {
         TransactionTemplate tx = new TransactionTemplate(transactionManager);
         tx.executeWithoutResult(status -> accountForUpdateLoader.load(UserId.of(userId)).orElseThrow());
-    }
-
-    private List<MvcTestResult> runConcurrent(RequestCall first, RequestCall second) throws Exception {
-        CountDownLatch ready = new CountDownLatch(2);
-        CountDownLatch start = new CountDownLatch(1);
-        AtomicReference<MvcTestResult> firstResult = new AtomicReference<>();
-        AtomicReference<MvcTestResult> secondResult = new AtomicReference<>();
-        AtomicReference<Throwable> firstError = new AtomicReference<>();
-        AtomicReference<Throwable> secondError = new AtomicReference<>();
-
-        Thread t1 = new Thread(() -> {
-            ready.countDown();
-            await(start);
-            try {
-                firstResult.set(first.call());
-            } catch (Throwable ex) {
-                firstError.set(ex);
-            }
-        });
-        Thread t2 = new Thread(() -> {
-            ready.countDown();
-            await(start);
-            try {
-                secondResult.set(second.call());
-            } catch (Throwable ex) {
-                secondError.set(ex);
-            }
-        });
-
-        t1.start();
-        t2.start();
-        assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
-        start.countDown();
-        t1.join(15_000);
-        t2.join(15_000);
-
-        assertThat(firstError.get()).isNull();
-        assertThat(secondError.get()).isNull();
-        List<MvcTestResult> results = new ArrayList<>();
-        results.add(firstResult.get());
-        results.add(secondResult.get());
-        assertThat(results).doesNotContainNull();
-        return results;
-    }
-
-    private void assertReconciled(TradingTestUsers users, TestUser user) {
-        TransactionTemplate tx = new TransactionTemplate(transactionManager);
-        tx.executeWithoutResult(status -> {
-            StoredAccount stored =
-                    accountProjectionPort.findByUserId(UserId.of(user.userId())).orElseThrow();
-            assertThat(stored).isInstanceOf(StoredAccount.Ready.class);
-            Account fromProjection = Account.restore(
-                    ((StoredAccount.Ready) stored).state(), new WeightedAverageCostBasisCalculator());
-            Account fromLedger;
-            try (Stream<LedgerEntry> entries = accountLedgerPort.streamByUserId(UserId.of(user.userId()))) {
-                fromLedger = users.rebuildFromLedger(user, entries);
-            }
-            assertThat(fromProjection.state()).isEqualTo(fromLedger.state());
-        });
     }
 
     private MvcTestResult place(long userId, String idempotencyKey, String json) {
@@ -184,15 +119,6 @@ class OrderCancellationConcurrencyHttpIT {
         return mvc.post().uri("/users/{userId}/orders/{orderId}/cancel", userId, orderId).exchange();
     }
 
-    private static void await(CountDownLatch latch) {
-        try {
-            assertThat(latch.await(10, TimeUnit.SECONDS)).isTrue();
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException(ex);
-        }
-    }
-
     private static String body(MvcTestResult result) {
         return new String(result.getResponse().getContentAsByteArray(), StandardCharsets.UTF_8);
     }
@@ -203,10 +129,5 @@ class OrderCancellationConcurrencyHttpIT {
 
     private static long jsonLong(MvcTestResult result, String path) {
         return ((Number) JsonPath.read(body(result), path)).longValue();
-    }
-
-    @FunctionalInterface
-    private interface RequestCall {
-        MvcTestResult call();
     }
 }
