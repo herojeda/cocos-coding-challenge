@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.cocoscap.challenge.PostgresTestcontainersConfiguration;
 import com.cocoscap.challenge.application.account.AccountProjectionPort;
 import com.cocoscap.challenge.domain.user.UserId;
+import com.cocoscap.challenge.support.AccountLockHolder;
 import com.cocoscap.challenge.support.TradingTestUsers;
 import com.cocoscap.challenge.support.TradingTestUsers.TestUser;
 import com.jayway.jsonpath.JsonPath;
@@ -12,8 +13,6 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,7 +29,6 @@ import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionTemplate;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -70,38 +68,14 @@ class OrderCancellationBusyHttpIT {
                                 .formatted(ggalId)),
                 "$.id");
         UserId lockedUser = UserId.of(user.userId());
-        TransactionTemplate tx = new TransactionTemplate(transactionManager);
         double busyBefore = counter(meterRegistry, "trading.account.busy", "operation", "cancel");
+        AccountLockHolder lockHolder = new AccountLockHolder(transactionManager, accountProjectionPort);
 
-        CountDownLatch holderHasLock = new CountDownLatch(1);
-        CountDownLatch holderMayFinish = new CountDownLatch(1);
         AtomicReference<MvcTestResult> contenderResult = new AtomicReference<>();
-        AtomicReference<Throwable> contenderError = new AtomicReference<>();
-
-        Thread holder = new Thread(() -> tx.executeWithoutResult(status -> {
-            accountProjectionPort.lockByUserId(lockedUser);
-            holderHasLock.countDown();
-            await(holderMayFinish);
-        }));
-        Thread contender = new Thread(() -> {
-            await(holderHasLock);
-            try {
-                contenderResult.set(cancel(user.userId(), orderId));
-            } catch (Throwable ex) {
-                contenderError.set(ex);
-            } finally {
-                holderMayFinish.countDown();
-            }
-        });
 
         try {
-            holder.start();
-            contender.start();
-            assertThat(holderHasLock.await(5, TimeUnit.SECONDS)).isTrue();
-            contender.join(10_000);
-            holder.join(10_000);
+            lockHolder.holdWhile(lockedUser, () -> contenderResult.set(cancel(user.userId(), orderId)));
 
-            assertThat(contenderError.get()).isNull();
             MvcTestResult result = contenderResult.get();
             assertThat(result).isNotNull();
             assertThat(result).hasStatus(HttpStatus.CONFLICT);
@@ -110,9 +84,6 @@ class OrderCancellationBusyHttpIT {
             assertThat(counter(meterRegistry, "trading.account.busy", "operation", "cancel"))
                     .isEqualTo(busyBefore + 1);
         } finally {
-            holderMayFinish.countDown();
-            holder.join(5_000);
-            contender.join(5_000);
             users.deleteUserAndAccount(user);
         }
     }
@@ -136,15 +107,6 @@ class OrderCancellationBusyHttpIT {
                 .param("id", orderId)
                 .query(String.class)
                 .single();
-    }
-
-    private static void await(CountDownLatch latch) {
-        try {
-            assertThat(latch.await(10, TimeUnit.SECONDS)).isTrue();
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException(ex);
-        }
     }
 
     private static String body(MvcTestResult result) {

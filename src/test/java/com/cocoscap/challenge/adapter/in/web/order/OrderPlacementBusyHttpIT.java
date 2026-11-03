@@ -8,6 +8,7 @@ import com.cocoscap.challenge.application.account.AccountProjectionPort;
 import com.cocoscap.challenge.domain.account.Account;
 import com.cocoscap.challenge.domain.account.LedgerEntry;
 import com.cocoscap.challenge.domain.user.UserId;
+import com.cocoscap.challenge.support.AccountLockHolder;
 import com.cocoscap.challenge.support.TradingTestUsers;
 import com.cocoscap.challenge.support.TradingTestUsers.TestUser;
 import com.jayway.jsonpath.JsonPath;
@@ -16,7 +17,6 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -73,45 +73,22 @@ class OrderPlacementBusyHttpIT {
         double busyBefore = counter(meterRegistry, "trading.account.busy", "operation", "place");
         long lockWaitCountBefore = timerCount(meterRegistry, "trading.account.lock.wait");
         double lockWaitTotalBefore = timerTotalMillis(meterRegistry, "trading.account.lock.wait");
+        AccountLockHolder lockHolder = new AccountLockHolder(transactionManager, accountProjectionPort);
 
-        CountDownLatch holderHasLock = new CountDownLatch(1);
-        CountDownLatch holderMayFinish = new CountDownLatch(1);
         AtomicReference<MvcTestResult> contenderResult = new AtomicReference<>();
-        AtomicReference<Throwable> contenderError = new AtomicReference<>();
-
-        Thread holder = new Thread(() -> tx.executeWithoutResult(status -> {
-            accountProjectionPort.lockByUserId(lockedUser);
-            holderHasLock.countDown();
-            await(holderMayFinish);
-        }));
-        Thread contender = new Thread(() -> {
-            await(holderHasLock);
-            try {
-                contenderResult.set(mvc.post()
-                        .uri("/users/{userId}/orders", user.userId())
-                        .header("Idempotency-Key", "ord-32")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(
-                                """
-                                {"instrument_id":%d,"side":"BUY","type":"MARKET","size":10,"amount":null,"price":null}
-                                """
-                                        .formatted(ggalId))
-                        .exchange());
-            } catch (Throwable ex) {
-                contenderError.set(ex);
-            } finally {
-                holderMayFinish.countDown();
-            }
-        });
 
         try {
-            holder.start();
-            contender.start();
-            assertThat(holderHasLock.await(5, TimeUnit.SECONDS)).isTrue();
-            contender.join(10_000);
-            holder.join(10_000);
+            lockHolder.holdWhile(lockedUser, () -> contenderResult.set(mvc.post()
+                    .uri("/users/{userId}/orders", user.userId())
+                    .header("Idempotency-Key", "ord-32")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                            """
+                            {"instrument_id":%d,"side":"BUY","type":"MARKET","size":10,"amount":null,"price":null}
+                            """
+                                    .formatted(ggalId))
+                    .exchange()));
 
-            assertThat(contenderError.get()).isNull();
             MvcTestResult result = contenderResult.get();
             assertThat(result).isNotNull();
             assertThat(result).hasStatus(HttpStatus.CONFLICT);
@@ -130,19 +107,7 @@ class OrderPlacementBusyHttpIT {
             });
             assertThat(available.availableCash()).isEqualByComparingTo("100000");
         } finally {
-            holderMayFinish.countDown();
-            holder.join(5_000);
-            contender.join(5_000);
             users.deleteUserAndAccount(user);
-        }
-    }
-
-    private static void await(CountDownLatch latch) {
-        try {
-            assertThat(latch.await(10, TimeUnit.SECONDS)).isTrue();
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException(ex);
         }
     }
 

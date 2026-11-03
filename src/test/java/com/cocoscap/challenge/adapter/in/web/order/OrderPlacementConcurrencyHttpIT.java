@@ -6,23 +6,19 @@ import com.cocoscap.challenge.PostgresTestcontainersConfiguration;
 import com.cocoscap.challenge.application.account.AccountForUpdateLoader;
 import com.cocoscap.challenge.application.account.AccountLedgerPort;
 import com.cocoscap.challenge.application.account.AccountProjectionPort;
-import com.cocoscap.challenge.application.account.StoredAccount;
 import com.cocoscap.challenge.domain.account.Account;
 import com.cocoscap.challenge.domain.account.LedgerEntry;
-import com.cocoscap.challenge.domain.costbasis.WeightedAverageCostBasisCalculator;
 import com.cocoscap.challenge.domain.instrument.InstrumentId;
 import com.cocoscap.challenge.domain.user.UserId;
+import com.cocoscap.challenge.support.AccountProjectionReconciler;
+import com.cocoscap.challenge.support.ConcurrentRequests;
 import com.cocoscap.challenge.support.TradingTestUsers;
 import com.cocoscap.challenge.support.TradingTestUsers.TestUser;
 import com.jayway.jsonpath.JsonPath;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -71,10 +67,12 @@ class OrderPlacementConcurrencyHttpIT {
         TestUser user = users.createWithCash(new BigDecimal("10000"));
         long ggalId = users.instrumentId("GGAL");
         String body = marketBuy(ggalId, 10);
+        AccountProjectionReconciler reconciler =
+                new AccountProjectionReconciler(transactionManager, accountProjectionPort, accountLedgerPort);
 
         try {
             warmReady(user.userId());
-            List<MvcTestResult> results = runConcurrent(
+            List<MvcTestResult> results = ConcurrentRequests.runTogether(
                     () -> place(user.userId(), "ord-28-a", body),
                     () -> place(user.userId(), "ord-28-b", body));
 
@@ -90,7 +88,7 @@ class OrderPlacementConcurrencyHttpIT {
             Account account = rebuild(users, user);
             assertThat(account.availableCash().signum()).isGreaterThanOrEqualTo(0);
             assertThat(account.availableCash()).isEqualByComparingTo("1142");
-            assertReconciled(users, user);
+            reconciler.assertReconciled(users, user);
         } finally {
             users.deleteUserAndAccount(user);
         }
@@ -105,10 +103,12 @@ class OrderPlacementConcurrencyHttpIT {
         users.addFilledBuy(user, "PAMP", 40L, new BigDecimal("900.00"), Instant.parse("2023-07-12T13:00:00Z"));
         long pampId = users.instrumentId("PAMP");
         String body = marketSell(pampId, 30);
+        AccountProjectionReconciler reconciler =
+                new AccountProjectionReconciler(transactionManager, accountProjectionPort, accountLedgerPort);
 
         try {
             warmReady(user.userId());
-            List<MvcTestResult> results = runConcurrent(
+            List<MvcTestResult> results = ConcurrentRequests.runTogether(
                     () -> place(user.userId(), "ord-29-a", body),
                     () -> place(user.userId(), "ord-29-b", body));
 
@@ -124,7 +124,7 @@ class OrderPlacementConcurrencyHttpIT {
             Account account = rebuild(users, user);
             assertThat(account.availableQuantity(InstrumentId.of(pampId))).isGreaterThanOrEqualTo(0);
             assertThat(account.availableQuantity(InstrumentId.of(pampId))).isEqualTo(10L);
-            assertReconciled(users, user);
+            reconciler.assertReconciled(users, user);
         } finally {
             users.deleteUserAndAccount(user);
         }
@@ -138,10 +138,12 @@ class OrderPlacementConcurrencyHttpIT {
         TestUser user = users.createWithCash(new BigDecimal("100000"));
         long ggalId = users.instrumentId("GGAL");
         long pampId = users.instrumentId("PAMP");
+        AccountProjectionReconciler reconciler =
+                new AccountProjectionReconciler(transactionManager, accountProjectionPort, accountLedgerPort);
 
         try {
             warmReady(user.userId());
-            List<MvcTestResult> results = runConcurrent(
+            List<MvcTestResult> results = ConcurrentRequests.runTogether(
                     () -> place(user.userId(), "distinct-a", marketBuy(ggalId, 10)),
                     () -> place(user.userId(), "distinct-b", marketBuy(pampId, 10)));
 
@@ -152,7 +154,7 @@ class OrderPlacementConcurrencyHttpIT {
             Account account = rebuild(users, user);
             assertThat(account.availableQuantity(InstrumentId.of(ggalId))).isEqualTo(10L);
             assertThat(account.availableQuantity(InstrumentId.of(pampId))).isEqualTo(10L);
-            assertReconciled(users, user);
+            reconciler.assertReconciled(users, user);
         } finally {
             users.deleteUserAndAccount(user);
         }
@@ -166,9 +168,11 @@ class OrderPlacementConcurrencyHttpIT {
         TestUser user = users.createWithCash(new BigDecimal("100000"));
         long ggalId = users.instrumentId("GGAL");
         String body = marketBuy(ggalId, 10);
+        AccountProjectionReconciler reconciler =
+                new AccountProjectionReconciler(transactionManager, accountProjectionPort, accountLedgerPort);
 
         try {
-            List<MvcTestResult> results = runConcurrent(
+            List<MvcTestResult> results = ConcurrentRequests.runTogether(
                     () -> place(user.userId(), "k-5", body),
                     () -> place(user.userId(), "k-5", body));
 
@@ -189,7 +193,7 @@ class OrderPlacementConcurrencyHttpIT {
             assertThat(replayed.getResponse().getHeader(OrderController.IDEMPOTENT_REPLAYED_HEADER))
                     .isEqualTo("true");
             assertThat(jsonLong(created, "$.id")).isEqualTo(jsonLong(replayed, "$.id"));
-            assertReconciled(users, user);
+            reconciler.assertReconciled(users, user);
         } finally {
             users.deleteUserAndAccount(user);
         }
@@ -201,71 +205,12 @@ class OrderPlacementConcurrencyHttpIT {
         tx.executeWithoutResult(status -> accountForUpdateLoader.load(UserId.of(userId)).orElseThrow());
     }
 
-    private List<MvcTestResult> runConcurrent(RequestCall first, RequestCall second) throws Exception {
-        CountDownLatch ready = new CountDownLatch(2);
-        CountDownLatch start = new CountDownLatch(1);
-        AtomicReference<MvcTestResult> firstResult = new AtomicReference<>();
-        AtomicReference<MvcTestResult> secondResult = new AtomicReference<>();
-        AtomicReference<Throwable> firstError = new AtomicReference<>();
-        AtomicReference<Throwable> secondError = new AtomicReference<>();
-
-        Thread t1 = new Thread(() -> {
-            ready.countDown();
-            await(start);
-            try {
-                firstResult.set(first.call());
-            } catch (Throwable ex) {
-                firstError.set(ex);
-            }
-        });
-        Thread t2 = new Thread(() -> {
-            ready.countDown();
-            await(start);
-            try {
-                secondResult.set(second.call());
-            } catch (Throwable ex) {
-                secondError.set(ex);
-            }
-        });
-
-        t1.start();
-        t2.start();
-        assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
-        start.countDown();
-        t1.join(15_000);
-        t2.join(15_000);
-
-        assertThat(firstError.get()).isNull();
-        assertThat(secondError.get()).isNull();
-        List<MvcTestResult> results = new ArrayList<>();
-        results.add(firstResult.get());
-        results.add(secondResult.get());
-        assertThat(results).doesNotContainNull();
-        return results;
-    }
-
     private Account rebuild(TradingTestUsers users, TestUser user) {
         TransactionTemplate tx = new TransactionTemplate(transactionManager);
         return tx.execute(status -> {
             try (Stream<LedgerEntry> entries = accountLedgerPort.streamByUserId(UserId.of(user.userId()))) {
                 return users.rebuildFromLedger(user, entries);
             }
-        });
-    }
-
-    private void assertReconciled(TradingTestUsers users, TestUser user) {
-        TransactionTemplate tx = new TransactionTemplate(transactionManager);
-        tx.executeWithoutResult(status -> {
-            StoredAccount stored =
-                    accountProjectionPort.findByUserId(UserId.of(user.userId())).orElseThrow();
-            assertThat(stored).isInstanceOf(StoredAccount.Ready.class);
-            Account fromProjection = Account.restore(
-                    ((StoredAccount.Ready) stored).state(), new WeightedAverageCostBasisCalculator());
-            Account fromLedger;
-            try (Stream<LedgerEntry> entries = accountLedgerPort.streamByUserId(UserId.of(user.userId()))) {
-                fromLedger = users.rebuildFromLedger(user, entries);
-            }
-            assertThat(fromProjection.state()).isEqualTo(fromLedger.state());
         });
     }
 
@@ -292,15 +237,6 @@ class OrderPlacementConcurrencyHttpIT {
                 .formatted(instrumentId, size);
     }
 
-    private static void await(CountDownLatch latch) {
-        try {
-            assertThat(latch.await(10, TimeUnit.SECONDS)).isTrue();
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException(ex);
-        }
-    }
-
     private static String body(MvcTestResult result) {
         return new String(result.getResponse().getContentAsByteArray(), StandardCharsets.UTF_8);
     }
@@ -311,10 +247,5 @@ class OrderPlacementConcurrencyHttpIT {
 
     private static long jsonLong(MvcTestResult result, String path) {
         return ((Number) JsonPath.read(body(result), path)).longValue();
-    }
-
-    @FunctionalInterface
-    private interface RequestCall {
-        MvcTestResult call();
     }
 }
