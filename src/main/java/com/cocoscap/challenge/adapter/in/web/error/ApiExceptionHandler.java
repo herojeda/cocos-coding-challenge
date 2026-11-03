@@ -1,5 +1,7 @@
 package com.cocoscap.challenge.adapter.in.web.error;
 
+import com.cocoscap.challenge.domain.instrument.InstrumentNotFoundException;
+import com.cocoscap.challenge.domain.order.NewOrderValidationException;
 import com.cocoscap.challenge.domain.user.UserNotFoundException;
 import io.micrometer.common.KeyValue;
 import io.micrometer.observation.Observation;
@@ -7,7 +9,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
+import tools.jackson.databind.exc.InvalidFormatException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.TypeMismatchException;
@@ -68,6 +72,15 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             HttpHeaders headers,
             HttpStatusCode status,
             WebRequest request) {
+        Optional<ValidationError> enumError = enumValidationError(ex);
+        if (enumError.isPresent()) {
+            return problemResponse(
+                    ProblemCode.VALIDATION_ERROR,
+                    ProblemCode.VALIDATION_ERROR.status(),
+                    ex,
+                    List.of(enumError.get()),
+                    request);
+        }
         return problemResponse(ProblemCode.MALFORMED_REQUEST, ProblemCode.MALFORMED_REQUEST.status(), ex, null, request);
     }
 
@@ -164,6 +177,19 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return problemResponse(ProblemCode.USER_NOT_FOUND, ProblemCode.USER_NOT_FOUND.status(), ex, null, request);
     }
 
+    @ExceptionHandler(InstrumentNotFoundException.class)
+    public ResponseEntity<Object> handleInstrumentNotFound(InstrumentNotFoundException ex, WebRequest request) {
+        return problemResponse(
+                ProblemCode.INSTRUMENT_NOT_FOUND, ProblemCode.INSTRUMENT_NOT_FOUND.status(), ex, null, request);
+    }
+
+    @ExceptionHandler(NewOrderValidationException.class)
+    public ResponseEntity<Object> handleNewOrderValidation(NewOrderValidationException ex, WebRequest request) {
+        List<ValidationError> errors = List.of(new ValidationError(ex.field(), REASON_INVALID));
+        return problemResponse(
+                ProblemCode.VALIDATION_ERROR, ProblemCode.VALIDATION_ERROR.status(), ex, errors, request);
+    }
+
     /**
      * Catch-all for unexpected failures. Domain exception handlers are registered above this by each
      * capability.
@@ -238,6 +264,25 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             return missingHeader.getHeaderName();
         }
         return "request";
+    }
+
+    /**
+     * Unknown enum constants in a JSON body are a {@link ProblemCode#VALIDATION_ERROR} with the field
+     * name (ORD-05), not {@link ProblemCode#MALFORMED_REQUEST}.
+     */
+    private static Optional<ValidationError> enumValidationError(HttpMessageNotReadableException ex) {
+        for (Throwable current = ex; current != null; current = current.getCause()) {
+            if (current instanceof InvalidFormatException invalidFormat
+                    && invalidFormat.getTargetType() != null
+                    && invalidFormat.getTargetType().isEnum()
+                    && !invalidFormat.getPath().isEmpty()) {
+                String field = invalidFormat.getPath().get(invalidFormat.getPath().size() - 1).getPropertyName();
+                if (field != null && !field.isBlank()) {
+                    return Optional.of(new ValidationError(field, REASON_INVALID));
+                }
+            }
+        }
+        return Optional.empty();
     }
 
     private static String reasonForConstraint(@Nullable String constraintCode) {
