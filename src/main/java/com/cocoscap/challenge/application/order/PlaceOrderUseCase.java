@@ -4,7 +4,10 @@ import com.cocoscap.challenge.application.account.AccountForUpdateLoader;
 import com.cocoscap.challenge.application.account.AccountProjectionPort;
 import com.cocoscap.challenge.application.instrument.InstrumentLookupPort;
 import com.cocoscap.challenge.application.market.MarketDataPort;
+import com.cocoscap.challenge.application.observability.AccountOperation;
+import com.cocoscap.challenge.application.observability.TradingMetricsPort;
 import com.cocoscap.challenge.domain.account.Account;
+import com.cocoscap.challenge.domain.account.AccountBusyException;
 import com.cocoscap.challenge.domain.instrument.Instrument;
 import com.cocoscap.challenge.domain.instrument.InstrumentId;
 import com.cocoscap.challenge.domain.instrument.InstrumentNotFoundException;
@@ -28,9 +31,8 @@ import java.util.Optional;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Places an order under the account lock (ADR-006). Idempotency lookup, busy metrics and typed
- * order metrics land in follow-up PRs; this version only stores the key and fingerprint with the
- * registered order.
+ * Places an order under the account lock (ADR-006). Idempotency lookup lands in a follow-up PR; this
+ * version only stores the key and fingerprint with the registered order.
  *
  * <p>Not {@code final} so Spring can apply the transactional proxy.
  */
@@ -41,6 +43,7 @@ public class PlaceOrderUseCase {
     private final OrderBookPort orderBookPort;
     private final InstrumentLookupPort instrumentLookupPort;
     private final MarketDataPort marketDataPort;
+    private final TradingMetricsPort tradingMetricsPort;
     private final Clock clock;
 
     public PlaceOrderUseCase(
@@ -49,6 +52,7 @@ public class PlaceOrderUseCase {
             OrderBookPort orderBookPort,
             InstrumentLookupPort instrumentLookupPort,
             MarketDataPort marketDataPort,
+            TradingMetricsPort tradingMetricsPort,
             Clock clock) {
         this.accountForUpdateLoader =
                 Objects.requireNonNull(accountForUpdateLoader, "accountForUpdateLoader");
@@ -57,6 +61,7 @@ public class PlaceOrderUseCase {
         this.orderBookPort = Objects.requireNonNull(orderBookPort, "orderBookPort");
         this.instrumentLookupPort = Objects.requireNonNull(instrumentLookupPort, "instrumentLookupPort");
         this.marketDataPort = Objects.requireNonNull(marketDataPort, "marketDataPort");
+        this.tradingMetricsPort = Objects.requireNonNull(tradingMetricsPort, "tradingMetricsPort");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -64,32 +69,38 @@ public class PlaceOrderUseCase {
     public Order execute(NewOrder newOrder, IdempotencyKey idempotencyKey) {
         Objects.requireNonNull(newOrder, "newOrder");
         Objects.requireNonNull(idempotencyKey, "idempotencyKey");
+        try {
+            Account account = accountForUpdateLoader
+                    .load(newOrder.userId())
+                    .orElseThrow(() -> new UserNotFoundException(newOrder.userId()));
 
-        Account account = accountForUpdateLoader
-                .load(newOrder.userId())
-                .orElseThrow(() -> new UserNotFoundException(newOrder.userId()));
+            Instrument instrument = requireTradableInstrument(newOrder.instrumentId());
+            Optional<Quote> quote = Optional.ofNullable(
+                    marketDataPort.findLatestByInstrumentIds(List.of(instrument.id())).get(instrument.id()));
 
-        Instrument instrument = requireTradableInstrument(newOrder.instrumentId());
-        Optional<Quote> quote = Optional.ofNullable(
-                marketDataPort.findLatestByInstrumentIds(List.of(instrument.id())).get(instrument.id()));
+            OrderDecision decision = OrderPlacementPolicy.decide(
+                    newOrder,
+                    account.availableCash(),
+                    account.availableQuantity(instrument.id()),
+                    quote);
 
-        OrderDecision decision = OrderPlacementPolicy.decide(
-                newOrder,
-                account.availableCash(),
-                account.availableQuantity(instrument.id()),
-                quote);
+            Instant datetime = clock.instant().truncatedTo(ChronoUnit.MICROS);
+            OrderId orderId =
+                    orderBookPort.register(decision, idempotencyKey, newOrder.fingerprint(), datetime);
+            account.apply(decision);
+            // REJECTED leaves the account unchanged (ADR-005), and a PENDING account was already saved by
+            // AccountForUpdateLoader when it was rebuilt, so there is nothing to persist.
+            if (decision.status() != OrderStatus.REJECTED) {
+                accountProjectionPort.save(account.state());
+            }
 
-        Instant datetime = clock.instant().truncatedTo(ChronoUnit.MICROS);
-        OrderId orderId =
-                orderBookPort.register(decision, idempotencyKey, newOrder.fingerprint(), datetime);
-        account.apply(decision);
-        // REJECTED leaves the account unchanged (ADR-005), and a PENDING account was already saved by
-        // AccountForUpdateLoader when it was rebuilt, so there is nothing to persist.
-        if (decision.status() != OrderStatus.REJECTED) {
-            accountProjectionPort.save(account.state());
+            Order order = decision.toOrder(orderId, datetime);
+            tradingMetricsPort.orderProcessed(order.type(), order.side(), order.status(), order.rejectionReason());
+            return order;
+        } catch (AccountBusyException ex) {
+            tradingMetricsPort.accountBusy(AccountOperation.PLACE);
+            throw ex;
         }
-
-        return decision.toOrder(orderId, datetime);
     }
 
     private Instrument requireTradableInstrument(InstrumentId instrumentId) {

@@ -2,6 +2,10 @@ package com.cocoscap.challenge.adapter.out.observability;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.cocoscap.challenge.application.observability.AccountOperation;
+import com.cocoscap.challenge.domain.order.OrderSide;
+import com.cocoscap.challenge.domain.order.OrderStatus;
+import com.cocoscap.challenge.domain.order.OrderType;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import org.junit.jupiter.api.DisplayName;
@@ -30,5 +34,28 @@ class MicrometerTradingMetricsAdapterTest {
                         .timer())
                 .isNotNull()
                 .satisfies(timer -> assertThat(timer.count()).isEqualTo(1));
+    }
+
+    @Test
+    @DisplayName("order and busy counters publish ADR-009 tags")
+    void recordsOrderAndBusyCounters() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        MicrometerTradingMetricsAdapter metrics = new MicrometerTradingMetricsAdapter(registry);
+
+        metrics.orderProcessed(OrderType.MARKET, OrderSide.BUY, OrderStatus.FILLED, null);
+        metrics.accountBusy(AccountOperation.PLACE);
+
+        assertThat(registry
+                        .find("trading.orders")
+                        .tag("type", "MARKET")
+                        .tag("side", "BUY")
+                        .tag("status", "FILLED")
+                        .tag("rejection_reason", "NONE")
+                        .counter())
+                .isNotNull()
+                .satisfies(counter -> assertThat(counter.count()).isEqualTo(1));
+        assertThat(registry.find("trading.account.busy").tag("operation", "place").counter())
+                .isNotNull()
+                .satisfies(counter -> assertThat(counter.count()).isEqualTo(1));
     }
 }
