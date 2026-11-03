@@ -21,7 +21,7 @@ GET {{baseUrl}}/instruments?sort=NAME&page=0&size=5
 GET {{baseUrl}}/instruments?ticker=
 
 ###
-# PF-01 · Portfolio of seed user 1 (total_value 889756)
+# PF-01 · Portfolio of seed user 1 (total_value 889756 on a fresh database; the orders below change it)
 GET {{baseUrl}}/users/1/portfolio
 
 ###
@@ -44,7 +44,7 @@ Idempotency-Key: {{$guid}}
 }
 
 ###
-# ORD-09 · BUY MARKET GGAL by amount → 201 FILLED
+# ORD-08 · BUY MARKET GGAL by amount → 201 FILLED
 POST {{baseUrl}}/users/1/orders
 Content-Type: application/json
 Idempotency-Key: {{$guid}}
