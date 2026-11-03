@@ -2,8 +2,10 @@ package com.cocoscap.challenge.adapter.in.web.instrument;
 
 import com.cocoscap.challenge.application.pagination.Page;
 import com.cocoscap.challenge.domain.instrument.Instrument;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 
+@Schema(description = "Paginated instrument search result")
 record InstrumentSearchResponse(List<InstrumentItemResponse> instruments, PageInfoResponse page) {
 
     static InstrumentSearchResponse from(Page<Instrument> result) {
@@ -13,7 +15,11 @@ record InstrumentSearchResponse(List<InstrumentItemResponse> instruments, PageIn
                 items, new PageInfoResponse(result.number(), result.size(), result.hasNext()));
     }
 
-    record InstrumentItemResponse(long id, String ticker, String name, String type) {
+    record InstrumentItemResponse(
+            long id,
+            String ticker,
+            String name,
+            @Schema(allowableValues = {"STOCK", "CURRENCY"}) String type) {
 
         static InstrumentItemResponse from(Instrument instrument) {
             return new InstrumentItemResponse(
@@ -25,5 +31,6 @@ record InstrumentSearchResponse(List<InstrumentItemResponse> instruments, PageIn
     }
 }
 
-record PageInfoResponse(int number, int size, boolean hasNext) {
+record PageInfoResponse(
+        int number, int size, @Schema(description = "Whether a next page exists") boolean hasNext) {
 }

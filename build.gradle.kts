@@ -26,6 +26,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-opentelemetry")
     implementation("net.ttddyy.observation:datasource-micrometer-spring-boot:2.3.0")
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.2.0")
     runtimeOnly("org.postgresql:postgresql")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
